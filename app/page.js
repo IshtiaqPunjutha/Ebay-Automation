@@ -9,19 +9,22 @@ export default function Dashboard() {
   const [loadingStores, setLoadingStores] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [error, setError] = useState("");
+  const [storesError, setStoresError] = useState("");
 
   async function loadStores() {
     setLoadingStores(true);
+    setStoresError("");
     try {
       const res = await fetch("/api/ebay/stores");
       const data = await res.json();
       setStores(data.stores || []);
+      if (data.error) setStoresError(data.error);
       // Auto-select the first store if none selected yet
       if (data.stores?.length && !activeStoreId) {
         setActiveStoreId(data.stores[0].storeId);
       }
     } catch (err) {
-      setError("Could not load connected stores.");
+      setStoresError("Could not load connected stores (network error).");
     }
     setLoadingStores(false);
   }
@@ -43,6 +46,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadStores();
+
+    // When the user switches back to this tab (e.g. after connecting a
+    // store in a new tab), automatically refresh the store list so the
+    // newly connected store shows up without a manual refresh.
+    function handleVisibility() {
+      if (document.visibilityState === "visible") {
+        loadStores();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
   useEffect(() => {
@@ -74,7 +88,7 @@ export default function Dashboard() {
       <div style={styles.header}>
         <h1 style={styles.title}>Order Automation Dashboard</h1>
         <div>
-          <a href="/api/ebay/connect" style={styles.primaryBtn}>
+          <a href="/api/ebay/connect" target="_blank" rel="noopener noreferrer" style={styles.primaryBtn}>
             + Connect New Store
           </a>
           <button onClick={handleLogout} style={styles.secondaryBtn}>
@@ -84,13 +98,14 @@ export default function Dashboard() {
       </div>
 
       {loadingStores && <p style={{ color: "#8a8f98" }}>Loading stores…</p>}
+      {storesError && <p style={{ color: "#f87171" }}>{storesError}</p>}
 
       {!loadingStores && stores.length === 0 && (
         <div style={styles.connectCard}>
           <p style={{ color: "#c7cad1", marginBottom: "16px" }}>
             No eBay store connected yet.
           </p>
-          <a href="/api/ebay/connect" style={styles.primaryBtn}>
+          <a href="/api/ebay/connect" target="_blank" rel="noopener noreferrer" style={styles.primaryBtn}>
             Connect Your eBay Store
           </a>
         </div>
