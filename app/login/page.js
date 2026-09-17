@@ -44,6 +44,9 @@ export default function LoginPage() {
         <button type="submit" disabled={loading} style={styles.button}>
           {loading ? "Checking..." : "Log In"}
         </button>
+        <a href="/privacy" style={styles.privacyLink}>
+          Privacy Policy
+        </a>
       </form>
     </main>
   );
@@ -87,5 +90,13 @@ const styles = {
     color: "#fff",
     fontWeight: 600,
     cursor: "pointer",
+  },
+  privacyLink: {
+    display: "block",
+    marginTop: "18px",
+    color: "#8a8f98",
+    fontSize: "12px",
+    textAlign: "center",
+    textDecoration: "none",
   },
 };
