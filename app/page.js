@@ -3,29 +3,66 @@
 import { useEffect, useState } from "react";
 
 export default function Dashboard() {
+  const [stores, setStores] = useState([]);
+  const [activeStoreId, setActiveStoreId] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loadingStores, setLoadingStores] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadOrders() {
-    setLoading(true);
+  async function loadStores() {
+    setLoadingStores(true);
+    try {
+      const res = await fetch("/api/ebay/stores");
+      const data = await res.json();
+      setStores(data.stores || []);
+      // Auto-select the first store if none selected yet
+      if (data.stores?.length && !activeStoreId) {
+        setActiveStoreId(data.stores[0].storeId);
+      }
+    } catch (err) {
+      setError("Could not load connected stores.");
+    }
+    setLoadingStores(false);
+  }
+
+  async function loadOrders(storeId) {
+    if (!storeId) return;
+    setLoadingOrders(true);
     setError("");
     try {
-      const res = await fetch("/api/ebay/orders");
+      const res = await fetch(`/api/ebay/orders?store=${encodeURIComponent(storeId)}`);
       const data = await res.json();
-      setConnected(data.connected);
       setOrders(data.orders || []);
       if (data.error) setError(data.error);
     } catch (err) {
       setError("Could not load orders.");
     }
-    setLoading(false);
+    setLoadingOrders(false);
   }
 
   useEffect(() => {
-    loadOrders();
+    loadStores();
   }, []);
+
+  useEffect(() => {
+    if (activeStoreId) loadOrders(activeStoreId);
+  }, [activeStoreId]);
+
+  async function handleDisconnect(storeId) {
+    if (!confirm("Disconnect this store? You can reconnect it later.")) return;
+    await fetch("/api/ebay/disconnect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId }),
+    });
+    const remaining = stores.filter((s) => s.storeId !== storeId);
+    setStores(remaining);
+    if (activeStoreId === storeId) {
+      setActiveStoreId(remaining[0]?.storeId || null);
+      setOrders([]);
+    }
+  }
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -37,16 +74,18 @@ export default function Dashboard() {
       <div style={styles.header}>
         <h1 style={styles.title}>Order Automation Dashboard</h1>
         <div>
-          <button onClick={loadOrders} style={styles.secondaryBtn}>
-            Refresh
-          </button>
+          <a href="/api/ebay/connect" style={styles.primaryBtn}>
+            + Connect New Store
+          </a>
           <button onClick={handleLogout} style={styles.secondaryBtn}>
             Log Out
           </button>
         </div>
       </div>
 
-      {!connected && !loading && (
+      {loadingStores && <p style={{ color: "#8a8f98" }}>Loading stores…</p>}
+
+      {!loadingStores && stores.length === 0 && (
         <div style={styles.connectCard}>
           <p style={{ color: "#c7cad1", marginBottom: "16px" }}>
             No eBay store connected yet.
@@ -57,22 +96,46 @@ export default function Dashboard() {
         </div>
       )}
 
-      {connected && (
+      {stores.length > 0 && (
         <>
-          <p style={{ color: "#8a8f98", fontSize: "13px" }}>
-            ✅ eBay store connected — showing unshipped orders
+          <div style={styles.tabsRow}>
+            {stores.map((s) => (
+              <div
+                key={s.storeId}
+                onClick={() => setActiveStoreId(s.storeId)}
+                style={{
+                  ...styles.tab,
+                  ...(activeStoreId === s.storeId ? styles.tabActive : {}),
+                }}
+              >
+                <span>{s.label}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDisconnect(s.storeId);
+                  }}
+                  style={styles.tabDisconnect}
+                  title="Disconnect this store"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <p style={{ color: "#8a8f98", fontSize: "13px", marginBottom: "12px" }}>
+            ✅ Showing unshipped orders for{" "}
+            <strong>{stores.find((s) => s.storeId === activeStoreId)?.label}</strong>
           </p>
 
           {error && <p style={{ color: "#f87171" }}>{error}</p>}
-          {loading && <p style={{ color: "#8a8f98" }}>Loading orders…</p>}
+          {loadingOrders && <p style={{ color: "#8a8f98" }}>Loading orders…</p>}
 
-          {!loading && orders.length === 0 && !error && (
-            <p style={{ color: "#8a8f98" }}>
-              No new unshipped orders right now.
-            </p>
+          {!loadingOrders && orders.length === 0 && !error && (
+            <p style={{ color: "#8a8f98" }}>No new unshipped orders right now.</p>
           )}
 
-          {!loading && orders.length > 0 && (
+          {!loadingOrders && orders.length > 0 && (
             <div style={{ overflowX: "auto" }}>
               <table style={styles.table}>
                 <thead>
@@ -163,6 +226,41 @@ const styles = {
     borderRadius: "8px",
     marginLeft: "8px",
     cursor: "pointer",
+  },
+  tabsRow: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    marginBottom: "20px",
+    borderBottom: "1px solid #2c2f36",
+    paddingBottom: "12px",
+  },
+  tab: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    background: "#1a1d24",
+    color: "#c7cad1",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "13px",
+    border: "1px solid #2c2f36",
+  },
+  tabActive: {
+    background: "#3b82f6",
+    color: "#fff",
+    borderColor: "#3b82f6",
+  },
+  tabDisconnect: {
+    background: "transparent",
+    border: "none",
+    color: "inherit",
+    cursor: "pointer",
+    fontSize: "14px",
+    lineHeight: 1,
+    padding: "0 2px",
+    opacity: 0.7,
   },
   table: {
     width: "100%",

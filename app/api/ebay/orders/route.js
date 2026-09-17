@@ -4,35 +4,45 @@ import {
   refreshAccessToken,
   isTokenExpired,
 } from "@/lib/ebay";
-import { getEbayTokens, updateAccessToken } from "@/lib/store";
+import { getEbayStore, updateStoreAccessToken } from "@/lib/store";
 
-export const dynamic = "force-dynamic";
+// GET /api/ebay/orders?store=<storeId>
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const storeId = searchParams.get("store");
 
-export async function GET() {
-  let tokens = await getEbayTokens();
-
-  if (!tokens) {
+  if (!storeId) {
     return NextResponse.json(
-      { connected: false, orders: [] },
-      { status: 200 }
+      { orders: [], error: "Missing store id" },
+      { status: 400 }
+    );
+  }
+
+  let storeRecord = await getEbayStore(storeId);
+
+  if (!storeRecord) {
+    return NextResponse.json(
+      { orders: [], error: "Store not found" },
+      { status: 404 }
     );
   }
 
   try {
-    if (isTokenExpired(tokens)) {
-      const refreshed = await refreshAccessToken(tokens.refreshToken);
-      tokens = await updateAccessToken(
+    if (isTokenExpired(storeRecord.tokens)) {
+      const refreshed = await refreshAccessToken(storeRecord.tokens.refreshToken);
+      storeRecord = await updateStoreAccessToken(
+        storeId,
         refreshed.accessToken,
         refreshed.expiresIn
       );
     }
 
-    const orders = await fetchUnshippedOrders(tokens.accessToken);
-    return NextResponse.json({ connected: true, orders });
+    const orders = await fetchUnshippedOrders(storeRecord.tokens.accessToken);
+    return NextResponse.json({ orders });
   } catch (err) {
-    console.error("Error fetching eBay orders:", err);
+    console.error(`Error fetching orders for store ${storeId}:`, err);
     return NextResponse.json(
-      { connected: true, orders: [], error: "Failed to fetch orders" },
+      { orders: [], error: "Failed to fetch orders" },
       { status: 500 }
     );
   }

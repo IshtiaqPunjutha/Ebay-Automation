@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { exchangeCodeForTokens } from "@/lib/ebay";
-import { saveEbayTokens } from "@/lib/store";
+import { exchangeCodeForTokens, fetchEbayIdentity } from "@/lib/ebay";
+import { saveEbayStore, slugifyStoreId } from "@/lib/store";
+import crypto from "crypto";
 
 // Step 4 of the OAuth flow: eBay redirects here with ?code=... after the
-// seller approves access. We exchange that code for real tokens and store
-// them, then send the seller back to the dashboard.
+// seller approves access. We exchange that code for real tokens, figure out
+// which eBay account we just connected (so we can label it), save it as its
+// own store record, then send the seller back to the dashboard.
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
@@ -23,7 +25,15 @@ export async function GET(request) {
 
   try {
     const tokens = await exchangeCodeForTokens(code);
-    await saveEbayTokens(tokens);
+
+    // Try to find out whose account this is, so we can label it nicely.
+    // If the identity scope wasn't granted for some reason, fall back to a
+    // random id rather than failing the whole connection.
+    const identity = await fetchEbayIdentity(tokens.accessToken);
+    const label = identity?.username || `store-${crypto.randomBytes(3).toString("hex")}`;
+    const storeId = slugifyStoreId(label);
+
+    await saveEbayStore(storeId, { tokens, label });
   } catch (err) {
     console.error("eBay OAuth callback error:", err);
     return NextResponse.redirect(`${baseUrl}/?ebay_error=token_exchange_failed`);
