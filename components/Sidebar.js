@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ThemeToggle from "./ThemeToggle";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
@@ -63,9 +64,12 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      <button onClick={handleLogout} style={styles.logoutBtn}>
-        Log out
-      </button>
+      <div style={styles.footer}>
+        <ThemeToggle />
+        <button onClick={handleLogout} style={styles.logoutBtn}>
+          Log out
+        </button>
+      </div>
     </aside>
   );
 }
@@ -170,5 +174,11 @@ const styles = {
     cursor: "pointer",
     fontSize: "13px",
     fontWeight: 500,
+    width: "100%",
+  },
+  footer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
   },
 };

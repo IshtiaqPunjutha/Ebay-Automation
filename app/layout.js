@@ -1,4 +1,5 @@
 import { Manrope, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -20,6 +21,20 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable}`}>
+      <head>
+        {/* Applies the saved theme before first paint, so there's no
+            dark-then-light flash on reload. */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`
+            (function () {
+              try {
+                var theme = localStorage.getItem('theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', theme);
+              } catch (e) {}
+            })();
+          `}
+        </Script>
+      </head>
       <body>{children}</body>
     </html>
   );

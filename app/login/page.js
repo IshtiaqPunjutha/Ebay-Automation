@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
@@ -29,6 +30,9 @@ export default function LoginPage() {
 
   return (
     <main style={styles.wrap}>
+      <div style={styles.themeToggleWrap}>
+        <ThemeToggle style={{ width: "auto" }} />
+      </div>
       <form onSubmit={handleSubmit} style={styles.card}>
         <div style={styles.brandMark}>OA</div>
         <h1 style={styles.heading}>Order Automation</h1>
@@ -61,6 +65,12 @@ const styles = {
     justifyContent: "center",
     background: "var(--bg)",
     fontFamily: "var(--font-sans), sans-serif",
+    position: "relative",
+  },
+  themeToggleWrap: {
+    position: "absolute",
+    top: "20px",
+    right: "20px",
   },
   card: {
     background: "var(--surface)",
