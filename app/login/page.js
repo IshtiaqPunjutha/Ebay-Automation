@@ -29,102 +29,72 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={styles.wrap}>
-      <div style={styles.themeToggleWrap}>
-        <ThemeToggle style={{ width: "auto" }} />
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--bg)",
+        position: "relative",
+      }}
+    >
+      <div style={{ position: "absolute", top: "20px", right: "20px" }}>
+        <ThemeToggle compact />
       </div>
-      <form onSubmit={handleSubmit} style={styles.card}>
-        <div style={styles.brandMark}>OA</div>
-        <h1 style={styles.heading}>Order Automation</h1>
-        <p style={styles.sub}>Sign in to your fulfillment console.</p>
+
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          padding: "32px",
+          borderRadius: "var(--radius-lg)",
+          width: "300px",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            width: "32px",
+            height: "32px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--accent)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600,
+            fontSize: "12px",
+            margin: "0 auto 18px auto",
+          }}
+        >
+          OA
+        </div>
+        <h1 style={{ color: "var(--text-primary)", fontSize: "16px", fontWeight: 600, margin: "0 0 4px 0", letterSpacing: "-0.01em" }}>
+          Order Automation
+        </h1>
+        <p style={{ color: "var(--text-secondary)", fontSize: "13px", margin: "0 0 22px 0" }}>
+          Sign in to your fulfillment console.
+        </p>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          style={styles.input}
+          className="input"
+          style={{ marginBottom: "14px", textAlign: "left" }}
           autoFocus
         />
-        {error && <p style={styles.error}>{error}</p>}
-        <button type="submit" disabled={loading} style={styles.button}>
+        {error && <p className="text-error" style={{ marginBottom: "12px", marginTop: "-6px" }}>{error}</p>}
+        <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "9px" }}>
           {loading ? "Checking…" : "Log in"}
         </button>
-        <a href="/privacy" style={styles.privacyLink}>
+        <a href="/privacy" style={{ display: "block", marginTop: "18px", color: "var(--text-tertiary)", fontSize: "11.5px", textDecoration: "none" }}>
           Privacy policy
         </a>
       </form>
     </main>
   );
 }
-
-const styles = {
-  wrap: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "var(--bg)",
-    fontFamily: "var(--font-sans), sans-serif",
-    position: "relative",
-  },
-  themeToggleWrap: {
-    position: "absolute",
-    top: "20px",
-    right: "20px",
-  },
-  card: {
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    padding: "36px",
-    borderRadius: "14px",
-    width: "320px",
-    textAlign: "center",
-  },
-  brandMark: {
-    width: "36px",
-    height: "36px",
-    borderRadius: "9px",
-    background: "var(--accent-soft)",
-    color: "var(--accent)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "var(--font-mono)",
-    fontWeight: 600,
-    fontSize: "13px",
-    margin: "0 auto 16px auto",
-  },
-  heading: { color: "var(--text-primary)", fontSize: "17px", fontWeight: 700, margin: "0 0 4px 0" },
-  sub: { color: "var(--text-secondary)", fontSize: "13px", margin: "0 0 22px 0" },
-  input: {
-    width: "100%",
-    padding: "10px 12px",
-    borderRadius: "8px",
-    border: "1px solid var(--border-strong)",
-    background: "var(--bg)",
-    color: "var(--text-primary)",
-    marginBottom: "14px",
-    boxSizing: "border-box",
-    fontSize: "13.5px",
-    textAlign: "left",
-  },
-  error: { color: "var(--danger)", fontSize: "12.5px", marginBottom: "12px", marginTop: "-6px" },
-  button: {
-    width: "100%",
-    padding: "10px",
-    borderRadius: "8px",
-    border: "none",
-    background: "var(--accent)",
-    color: "#1a0f06",
-    fontWeight: 700,
-    fontSize: "13.5px",
-    cursor: "pointer",
-  },
-  privacyLink: {
-    display: "block",
-    marginTop: "18px",
-    color: "var(--text-tertiary)",
-    fontSize: "11.5px",
-    textDecoration: "none",
-  },
-};

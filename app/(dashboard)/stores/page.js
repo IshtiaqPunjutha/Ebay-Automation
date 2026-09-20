@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 
 export default function StoresPage() {
   const [stores, setStores] = useState([]);
@@ -43,47 +44,48 @@ export default function StoresPage() {
 
   return (
     <div>
-      <div style={styles.sectionHeader}>
+      <div className="page-header">
         <div>
-          <h1 style={styles.title}>Stores</h1>
-          <p style={styles.subtitle}>All eBay seller accounts connected to this dashboard.</p>
+          <h1 className="page-title">Stores</h1>
+          <p className="page-subtitle">Every eBay seller account feeding this console.</p>
         </div>
-        <a href="/api/ebay/connect" target="_blank" rel="noopener noreferrer" style={styles.primaryBtn}>
-          + Connect New Store
+        <a href="/api/ebay/connect" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+          <Plus strokeWidth={2.5} />
+          Connect a store
         </a>
       </div>
 
-      {error && <p style={{ color: "#f87171" }}>{error}</p>}
-      {loading && <p style={{ color: "#8a8f98" }}>Loading stores…</p>}
+      {error && <p className="text-error">{error}</p>}
+      {loading && <p className="text-muted">Loading stores…</p>}
 
       {!loading && stores.length === 0 && (
-        <div style={styles.emptyCard}>
-          <p style={{ color: "#c7cad1", marginBottom: "16px" }}>
-            No eBay store connected yet.
-          </p>
-          <a href="/api/ebay/connect" target="_blank" rel="noopener noreferrer" style={styles.primaryBtn}>
-            Connect Your eBay Store
+        <div className="empty-state">
+          <p className="empty-title">No store connected yet</p>
+          <a href="/api/ebay/connect" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+            <Plus strokeWidth={2.5} />
+            Connect your eBay store
           </a>
         </div>
       )}
 
       {stores.length > 0 && (
-        <div style={styles.list}>
+        <div className="panel">
           {stores.map((s) => (
-            <div key={s.storeId} style={styles.row}>
-              <div style={styles.rowInfo}>
-                <div style={styles.rowLabel}>{s.label}</div>
-                <div style={styles.rowMeta}>
+            <div key={s.storeId} className="list-row">
+              <span className="status-dot" />
+              <div style={{ flex: 1 }}>
+                <div className="list-row-title">{s.label}</div>
+                <div className="list-row-meta">
                   Connected {new Date(s.connectedAt).toLocaleDateString()}
                 </div>
               </div>
-              <div style={styles.rowActions}>
-                <Link href={`/stores/${s.storeId}`} style={styles.viewBtn}>
-                  View Orders
+              <div className="list-row-actions">
+                <Link href={`/stores/${s.storeId}`} className="btn btn-secondary btn-sm">
+                  View orders
                 </Link>
                 <button
                   onClick={() => handleDisconnect(s.storeId, s.label)}
-                  style={styles.disconnectBtn}
+                  className="btn btn-danger-ghost btn-sm"
                 >
                   Disconnect
                 </button>
@@ -95,64 +97,3 @@ export default function StoresPage() {
     </div>
   );
 }
-
-const styles = {
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "24px",
-  },
-  title: { color: "#fff", fontSize: "22px", margin: "0 0 4px 0" },
-  subtitle: { color: "#8a8f98", fontSize: "13px", margin: 0 },
-  primaryBtn: {
-    display: "inline-block",
-    background: "#3b82f6",
-    color: "#fff",
-    padding: "9px 16px",
-    borderRadius: "8px",
-    textDecoration: "none",
-    fontWeight: 600,
-    fontSize: "13px",
-    whiteSpace: "nowrap",
-  },
-  emptyCard: {
-    background: "#1a1d24",
-    border: "1px solid #22252d",
-    padding: "32px",
-    borderRadius: "12px",
-    textAlign: "center",
-  },
-  list: { display: "flex", flexDirection: "column", gap: "10px" },
-  row: {
-    background: "#1a1d24",
-    border: "1px solid #22252d",
-    borderRadius: "10px",
-    padding: "16px 20px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  rowInfo: {},
-  rowLabel: { color: "#fff", fontSize: "15px", fontWeight: 600 },
-  rowMeta: { color: "#8a8f98", fontSize: "12px", marginTop: "4px" },
-  rowActions: { display: "flex", gap: "8px" },
-  viewBtn: {
-    background: "#3b82f6",
-    color: "#fff",
-    padding: "8px 14px",
-    borderRadius: "8px",
-    textDecoration: "none",
-    fontSize: "13px",
-    fontWeight: 600,
-  },
-  disconnectBtn: {
-    background: "transparent",
-    border: "1px solid #3a1f22",
-    color: "#f87171",
-    padding: "8px 14px",
-    borderRadius: "8px",
-    fontSize: "13px",
-    cursor: "pointer",
-  },
-};

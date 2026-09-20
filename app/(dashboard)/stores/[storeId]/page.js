@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 
 export default function StoreOrdersPage() {
   const { storeId } = useParams();
@@ -19,7 +20,6 @@ export default function StoreOrdersPage() {
     if (match) {
       setStoreLabel(match.label);
     } else {
-      // Store no longer exists (e.g. was disconnected) — bounce back to list
       router.push("/stores");
     }
   }
@@ -46,58 +46,63 @@ export default function StoreOrdersPage() {
 
   return (
     <div>
-      <Link href="/stores" style={styles.backLink}>
-        ← All Stores
+      <Link href="/stores" className="back-link">
+        <ArrowLeft size={13} strokeWidth={2} />
+        All stores
       </Link>
 
-      <div style={styles.sectionHeader}>
+      <div className="page-header">
         <div>
-          <h1 style={styles.title}>{storeLabel || "Store"}</h1>
-          <p style={styles.subtitle}>Unshipped orders for this store.</p>
+          <h1 className="page-title">{storeLabel || "Store"}</h1>
+          <p className="page-subtitle">Unshipped orders for this store.</p>
         </div>
-        <button onClick={loadOrders} style={styles.refreshBtn}>
+        <button onClick={loadOrders} className="btn btn-secondary">
+          <RefreshCw size={14} strokeWidth={2} />
           Refresh
         </button>
       </div>
 
-      {error && <p style={{ color: "#f87171" }}>{error}</p>}
-      {loading && <p style={{ color: "#8a8f98" }}>Loading orders…</p>}
+      {error && <p className="text-error">{error}</p>}
+      {loading && <p className="text-muted">Loading orders…</p>}
 
       {!loading && orders.length === 0 && !error && (
-        <p style={{ color: "#8a8f98" }}>No new unshipped orders right now.</p>
+        <div className="empty-state">
+          <p className="empty-title">No unshipped orders right now</p>
+          <p className="empty-subtitle" style={{ marginBottom: 0 }}>
+            New orders will appear here automatically.
+          </p>
+        </div>
       )}
 
       {!loading && orders.length > 0 && (
-        <div style={{ overflowX: "auto" }}>
-          <table style={styles.table}>
+        <div className="panel table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
-                <th style={styles.th}>Order ID</th>
-                <th style={styles.th}>Item</th>
-                <th style={styles.th}>SKU</th>
-                <th style={styles.th}>Variant</th>
-                <th style={styles.th}>Qty</th>
-                <th style={styles.th}>Buyer</th>
-                <th style={styles.th}>Ship To</th>
+                <th>Order</th>
+                <th>Item</th>
+                <th>SKU</th>
+                <th>Variant</th>
+                <th>Qty</th>
+                <th>Buyer</th>
+                <th>Ship to</th>
               </tr>
             </thead>
             <tbody>
               {orders.map((order) =>
                 order.lineItems.map((li) => (
                   <tr key={li.lineItemId}>
-                    <td style={styles.td}>{order.orderId}</td>
-                    <td style={styles.td}>{li.title}</td>
-                    <td style={styles.td}>{li.sku || "—"}</td>
-                    <td style={styles.td}>
+                    <td className="mono">{order.orderId}</td>
+                    <td>{li.title}</td>
+                    <td className="mono">{li.sku || "—"}</td>
+                    <td>
                       {Object.entries(li.variants || {})
                         .map(([k, v]) => `${k}: ${v}`)
                         .join(", ") || "—"}
                     </td>
-                    <td style={styles.td}>{li.quantity}</td>
-                    <td style={styles.td}>
-                      {order.shipTo.fullName || order.buyerUsername}
-                    </td>
-                    <td style={styles.td}>
+                    <td className="mono">{li.quantity}</td>
+                    <td>{order.shipTo.fullName || order.buyerUsername}</td>
+                    <td>
                       {[
                         order.shipTo.addressLine1,
                         order.shipTo.city,
@@ -118,45 +123,3 @@ export default function StoreOrdersPage() {
     </div>
   );
 }
-
-const styles = {
-  backLink: {
-    color: "#8a8f98",
-    fontSize: "13px",
-    textDecoration: "none",
-    display: "inline-block",
-    marginBottom: "16px",
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "20px",
-  },
-  title: { color: "#fff", fontSize: "20px", margin: "0 0 4px 0" },
-  subtitle: { color: "#8a8f98", fontSize: "13px", margin: 0 },
-  refreshBtn: {
-    background: "#1a1d24",
-    color: "#c7cad1",
-    border: "1px solid #2c2f36",
-    padding: "8px 14px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "13px",
-  },
-  table: { width: "100%", borderCollapse: "collapse", marginTop: "8px" },
-  th: {
-    textAlign: "left",
-    color: "#8a8f98",
-    fontSize: "12px",
-    textTransform: "uppercase",
-    borderBottom: "1px solid #2c2f36",
-    padding: "10px 8px",
-  },
-  td: {
-    color: "#e5e7eb",
-    fontSize: "14px",
-    borderBottom: "1px solid #1e2128",
-    padding: "10px 8px",
-  },
-};

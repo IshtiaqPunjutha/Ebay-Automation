@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Sun, Moon } from "lucide-react";
 
-export default function ThemeToggle({ style }) {
+export default function ThemeToggle({ compact = false }) {
   const [theme, setTheme] = useState("dark");
 
   useEffect(() => {
-    const stored = localStorage.getItem("theme") || "dark";
-    setTheme(stored);
+    setTheme(localStorage.getItem("theme") || "dark");
   }, []);
 
   function toggle() {
@@ -17,27 +17,12 @@ export default function ThemeToggle({ style }) {
     localStorage.setItem("theme", next);
   }
 
+  const Icon = theme === "dark" ? Sun : Moon;
+
   return (
-    <button onClick={toggle} style={{ ...styles.btn, ...style }}>
-      <span>{theme === "dark" ? "☀️" : "🌙"}</span>
-      {theme === "dark" ? "Light mode" : "Dark mode"}
+    <button onClick={toggle} className="btn btn-ghost" style={compact ? { width: "auto" } : undefined}>
+      <Icon strokeWidth={2} />
+      {!compact && (theme === "dark" ? "Light mode" : "Dark mode")}
     </button>
   );
 }
-
-const styles = {
-  btn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    background: "transparent",
-    border: "1px solid var(--border-strong)",
-    color: "var(--text-secondary)",
-    padding: "8px 10px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: 500,
-    width: "100%",
-  },
-};
