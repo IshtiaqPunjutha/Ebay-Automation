@@ -1,97 +1,72 @@
 export const metadata = {
-  title: "Privacy Policy | Order Automation Dashboard",
+  title: "Privacy Policy",
 };
 
-export default function PrivacyPolicyPage() {
+export default function PrivacyPolicy() {
   return (
-    <main style={styles.page}>
-      <article style={styles.content}>
-        <a href="/login" style={styles.backLink}>
-          Back to login
-        </a>
-        <h1 style={styles.heading}>Privacy Policy</h1>
-        <p style={styles.updated}>Last updated: September 17, 2026</p>
+    <main style={styles.wrap}>
+      <div style={styles.card}>
+        <h1 style={styles.h1}>Privacy policy</h1>
+        <p style={styles.updated}>Last updated: {new Date().toLocaleDateString()}</p>
 
-        <p>
-          This Privacy Policy explains how the Order Automation Dashboard
-          collects, uses, and protects information when you use this service.
-        </p>
-
-        <h2>Information we collect</h2>
-        <p>
-          The dashboard may process eBay account and order information that you
-          authorize through eBay&apos;s OAuth connection. This can include order,
-          buyer, item, shipping, and fulfillment details needed to display and
-          manage your orders.
-        </p>
-        <p>
-          We also process login information needed to protect access to the
-          dashboard. The application does not store your eBay password.
+        <p style={styles.p}>
+          This application is a private, internal order-fulfillment tool
+          used to connect an eBay seller account to a fulfillment workflow.
+          It is not a public-facing service and does not sell, share, or
+          expose data to third parties.
         </p>
 
-        <h2>How we use information</h2>
-        <p>
-          Information is used to authenticate authorized users, retrieve and
-          display eBay orders, support order automation, and maintain the
-          security and reliability of the service. We do not sell personal
-          information or use it for unrelated advertising.
+        <h2 style={styles.h2}>Data we access</h2>
+        <p style={styles.p}>
+          Through the eBay API, this application accesses order data
+          necessary for fulfillment, including item titles and SKUs, buyer
+          shipping name and address, order quantities, and selected product
+          variants such as color or size.
         </p>
 
-        <h2>Data storage and security</h2>
-        <p>
-          OAuth access and refresh tokens are stored in the application&apos;s
-          configured secure data store. Access to dashboard data is restricted
-          by authentication and session controls. No online service can
-          guarantee absolute security, but reasonable technical safeguards are
-          used to protect the information processed by this application.
+        <h2 style={styles.h2}>How data is used</h2>
+        <p style={styles.p}>
+          Order data is used solely to identify, process, and fulfill
+          orders placed on the connected eBay account, and to update those
+          orders with shipment tracking information once available.
         </p>
 
-        <h2>Third-party services</h2>
-        <p>
-          This service connects to eBay APIs. Your use of eBay remains subject
-          to eBay&apos;s own privacy policy and terms. We only request and use the
-          permissions needed for the dashboard&apos;s connected features.
+        <h2 style={styles.h2}>Data storage</h2>
+        <p style={styles.p}>
+          Access tokens and order data are stored securely and are only
+          accessible to the operator of this application. Data is not
+          shared with any third party other than the platforms directly
+          involved in order fulfillment.
         </p>
 
-        <h2>Data retention and deletion</h2>
-        <p>
-          Information is retained only for as long as needed to provide the
-          dashboard and its connected features. You can disconnect the eBay
-          account or request deletion of stored connection data from the
-          service operator.
+        <h2 style={styles.h2}>Contact</h2>
+        <p style={styles.p}>
+          For questions about this policy, contact the operator of this
+          application directly.
         </p>
-
-        <h2>Changes to this policy</h2>
-        <p>
-          This policy may be updated when the service or its data practices
-          change. The updated version will be published on this page with a new
-          revision date.
-        </p>
-      </article>
+      </div>
     </main>
   );
 }
 
 const styles = {
-  page: {
+  wrap: {
     minHeight: "100vh",
+    background: "var(--bg)",
+    fontFamily: "var(--font-sans), sans-serif",
     padding: "48px 20px",
-    boxSizing: "border-box",
-    background: "#0f1115",
-    color: "#d7dae0",
-    fontFamily: "system-ui, sans-serif",
   },
-  content: {
-    maxWidth: "760px",
+  card: {
+    maxWidth: "680px",
     margin: "0 auto",
-    lineHeight: 1.7,
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    padding: "36px",
+    borderRadius: "12px",
+    color: "var(--text-primary)",
   },
-  backLink: {
-    color: "#60a5fa",
-    fontSize: "14px",
-    textDecoration: "none",
-  },
-  heading: { color: "#fff", fontSize: "36px", margin: "28px 0 4px" },
-  updated: { color: "#8a8f98", fontSize: "13px", marginTop: 0 },
-  h2: { color: "#fff", fontSize: "21px", margin: "32px 0 8px" },
+  h1: { fontSize: "20px", fontWeight: 700, margin: "0 0 4px 0" },
+  updated: { color: "var(--text-tertiary)", fontSize: "12px", margin: "0 0 26px 0" },
+  h2: { fontSize: "14.5px", fontWeight: 600, marginTop: "24px", marginBottom: "8px" },
+  p: { color: "var(--text-secondary)", fontSize: "13.5px", lineHeight: "1.65", margin: 0 },
 };

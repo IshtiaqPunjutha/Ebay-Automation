@@ -23,15 +23,16 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } else {
-      setError("Incorrect password.");
+      setError("That password isn't right.");
     }
   }
 
   return (
     <main style={styles.wrap}>
       <form onSubmit={handleSubmit} style={styles.card}>
-        <h1 style={styles.heading}>Order Automation Dashboard</h1>
-        <p style={styles.sub}>Enter password to continue</p>
+        <div style={styles.brandMark}>OA</div>
+        <h1 style={styles.heading}>Order Automation</h1>
+        <p style={styles.sub}>Sign in to your fulfillment console.</p>
         <input
           type="password"
           value={password}
@@ -42,10 +43,10 @@ export default function LoginPage() {
         />
         {error && <p style={styles.error}>{error}</p>}
         <button type="submit" disabled={loading} style={styles.button}>
-          {loading ? "Checking..." : "Log In"}
+          {loading ? "Checking…" : "Log in"}
         </button>
         <a href="/privacy" style={styles.privacyLink}>
-          Privacy Policy
+          Privacy policy
         </a>
       </form>
     </main>
@@ -58,45 +59,62 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#0f1115",
-    fontFamily: "system-ui, sans-serif",
+    background: "var(--bg)",
+    fontFamily: "var(--font-sans), sans-serif",
   },
   card: {
-    background: "#1a1d24",
-    padding: "40px",
-    borderRadius: "12px",
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    padding: "36px",
+    borderRadius: "14px",
     width: "320px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+    textAlign: "center",
   },
-  heading: { color: "#fff", fontSize: "18px", marginBottom: "4px" },
-  sub: { color: "#8a8f98", fontSize: "13px", marginBottom: "20px" },
+  brandMark: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "9px",
+    background: "var(--accent-soft)",
+    color: "var(--accent)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "var(--font-mono)",
+    fontWeight: 600,
+    fontSize: "13px",
+    margin: "0 auto 16px auto",
+  },
+  heading: { color: "var(--text-primary)", fontSize: "17px", fontWeight: 700, margin: "0 0 4px 0" },
+  sub: { color: "var(--text-secondary)", fontSize: "13px", margin: "0 0 22px 0" },
   input: {
     width: "100%",
     padding: "10px 12px",
     borderRadius: "8px",
-    border: "1px solid #2c2f36",
-    background: "#0f1115",
-    color: "#fff",
-    marginBottom: "12px",
+    border: "1px solid var(--border-strong)",
+    background: "var(--bg)",
+    color: "var(--text-primary)",
+    marginBottom: "14px",
     boxSizing: "border-box",
+    fontSize: "13.5px",
+    textAlign: "left",
   },
-  error: { color: "#f87171", fontSize: "13px", marginBottom: "12px" },
+  error: { color: "var(--danger)", fontSize: "12.5px", marginBottom: "12px", marginTop: "-6px" },
   button: {
     width: "100%",
     padding: "10px",
     borderRadius: "8px",
     border: "none",
-    background: "#3b82f6",
-    color: "#fff",
-    fontWeight: 600,
+    background: "var(--accent)",
+    color: "#1a0f06",
+    fontWeight: 700,
+    fontSize: "13.5px",
     cursor: "pointer",
   },
   privacyLink: {
     display: "block",
     marginTop: "18px",
-    color: "#8a8f98",
-    fontSize: "12px",
-    textAlign: "center",
+    color: "var(--text-tertiary)",
+    fontSize: "11.5px",
     textDecoration: "none",
   },
 };
