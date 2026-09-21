@@ -216,8 +216,12 @@ export default function StoreOrdersPage() {
               </thead>
               <tbody>
                 {paginatedRows.map((row) => {
-                  const maxTarget = Math.max(0, (row.orderTotal || 0) * 0.8);
-                  const aliExpressUrl = buildAliExpressSearchUrl(row.title, maxTarget, row.currency || "GBP");
+                  const targetProfit = Math.max(0, row.estimatedEarnings || 0);
+                  const suggestions = buildAliExpressProductSuggestions(
+                    row.title,
+                    targetProfit,
+                    row.currency || "GBP"
+                  );
 
                   return (
                     <tr key={`${row.orderId}-${row.lineItemId}`}>
@@ -252,19 +256,26 @@ export default function StoreOrdersPage() {
                               .filter(Boolean)
                               .join(", ")}
                           </span>
-                          <a
-                            href={aliExpressUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn btn-secondary btn-sm"
-                            style={{ width: "fit-content" }}
-                          >
-                            AliExpress ≤ {new Intl.NumberFormat("en-GB", {
-                              style: "currency",
-                              currency: row.currency || "GBP",
-                              maximumFractionDigits: 2,
-                            }).format(maxTarget)}
-                          </a>
+
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "2px" }}>
+                            {suggestions.map((item) => (
+                              <a
+                                key={`${row.lineItemId}-${item.label}`}
+                                href={item.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-secondary btn-sm"
+                                style={{ width: "fit-content" }}
+                                title={`${item.reason} · ${item.score}% match`}
+                              >
+                                {item.label}: {item.score}% · {new Intl.NumberFormat("en-GB", {
+                                  style: "currency",
+                                  currency: row.currency || "GBP",
+                                  maximumFractionDigits: 2,
+                                }).format(targetProfit)} max
+                              </a>
+                            ))}
+                          </div>
                         </div>
                       </td>
                     </tr>
