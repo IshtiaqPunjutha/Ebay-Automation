@@ -226,7 +226,42 @@ export default function StoreOrdersPage() {
                   return (
                     <tr key={`${row.orderId}-${row.lineItemId}`}>
                       <td className="mono">{row.orderId}</td>
-                      <td>{row.title}</td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          {row.imageUrl ? (
+                            <img
+                              src={row.imageUrl}
+                              alt={row.title || "Product image"}
+                              style={{
+                                width: 40,
+                                height: 40,
+                                objectFit: "cover",
+                                borderRadius: 6,
+                                border: "1px solid #ddd",
+                                background: "#f5f5f5",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 6,
+                                border: "1px solid #ddd",
+                                background: "#f5f5f5",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 10,
+                                color: "#666",
+                              }}
+                            >
+                              IMG
+                            </div>
+                          )}
+                          <span>{row.title}</span>
+                        </div>
+                      </td>
                       <td className="mono">{row.sku || "—"}</td>
                       <td>
                         {Object.entries(row.variants || {})
