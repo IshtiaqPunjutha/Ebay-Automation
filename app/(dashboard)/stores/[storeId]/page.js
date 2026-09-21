@@ -224,6 +224,7 @@ export default function StoreOrdersPage() {
                         row.shipTo?.stateOrProvince,
                         row.shipTo?.postalCode,
                         row.shipTo?.countryCode,
+                        row.shipTo?.phone,
                       ]
                         .filter(Boolean)
                         .join(", ")}
