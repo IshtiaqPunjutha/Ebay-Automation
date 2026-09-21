@@ -209,7 +209,7 @@ export default function StoreOrdersPage() {
                   <th>SKU</th>
                   <th>Variant</th>
                   <th>Qty</th>
-                  <th>Order total</th>
+                  <th>Order earnings</th>
                   <th>Buyer</th>
                   <th>Ship to</th>
                 </tr>
@@ -239,7 +239,7 @@ export default function StoreOrdersPage() {
                           style: "currency",
                           currency: row.currency || "GBP",
                           maximumFractionDigits: 2,
-                        }).format(row.orderTotal || 0)}
+                        }).format(row.estimatedEarnings || 0)}
                       </td>
                       <td>{row.shipTo?.fullName || row.buyerUsername}</td>
                       <td>
