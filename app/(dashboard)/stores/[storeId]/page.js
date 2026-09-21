@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { buildAliExpressSearchUrl, estimateOrderEarnings } from "@/lib/ebay";
+import { buildAliExpressProductSuggestions, estimateOrderEarnings } from "@/lib/ebay";
 
 export default function StoreOrdersPage() {
   const { storeId } = useParams();
