@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
+import { buildAliExpressSearchUrl, estimateOrderEarnings } from "@/lib/ebay";
 
 export default function StoreOrdersPage() {
   const { storeId } = useParams();
@@ -22,6 +23,7 @@ export default function StoreOrdersPage() {
           ...li,
           orderId: order.orderId,
           orderTotal: order.orderTotal || 0,
+          estimatedEarnings: estimateOrderEarnings(order.orderTotal || 0),
           currency: order.currency || "GBP",
           buyerUsername: order.buyerUsername || order.shipTo?.fullName || "—",
           shipTo: order.shipTo,
@@ -51,11 +53,16 @@ export default function StoreOrdersPage() {
       (sum, order) => sum + (Number(order.orderTotal) || 0),
       0
     );
+    const totalEarnings = orders.reduce(
+      (sum, order) => sum + (Number(order.estimatedEarnings) || 0),
+      0
+    );
 
     return {
       totalOrders,
       totalUnits,
       totalRevenue,
+      totalEarnings,
     };
   })();
 
@@ -120,6 +127,16 @@ export default function StoreOrdersPage() {
           <div className="stat-card">
             <div className="stat-value">{metrics.totalUnits}</div>
             <div className="stat-label">Items</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">
+              {new Intl.NumberFormat("en-GB", {
+                style: "currency",
+                currency: orders[0]?.currency || "GBP",
+                maximumFractionDigits: 2,
+              }).format(metrics.totalEarnings)}
+            </div>
+            <div className="stat-label">Order earnings</div>
           </div>
           <div className="stat-card">
             <div className="stat-value">
@@ -198,39 +215,61 @@ export default function StoreOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedRows.map((row) => (
-                  <tr key={`${row.orderId}-${row.lineItemId}`}>
-                    <td className="mono">{row.orderId}</td>
-                    <td>{row.title}</td>
-                    <td className="mono">{row.sku || "—"}</td>
-                    <td>
-                      {Object.entries(row.variants || {})
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(", ") || "—"}
-                    </td>
-                    <td className="mono">{row.quantity}</td>
-                    <td className="mono">
-                      {new Intl.NumberFormat("en-GB", {
-                        style: "currency",
-                        currency: row.currency || "GBP",
-                        maximumFractionDigits: 2,
-                      }).format(row.orderTotal || 0)}
-                    </td>
-                    <td>{row.shipTo?.fullName || row.buyerUsername}</td>
-                    <td>
-                      {[
-                        row.shipTo?.addressLine1,
-                        row.shipTo?.city,
-                        row.shipTo?.stateOrProvince,
-                        row.shipTo?.postalCode,
-                        row.shipTo?.countryCode,
-                        row.shipTo?.phone,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </td>
-                  </tr>
-                ))}
+                {paginatedRows.map((row) => {
+                  const maxTarget = Math.max(0, (row.orderTotal || 0) * 0.8);
+                  const aliExpressUrl = buildAliExpressSearchUrl(row.title, maxTarget, row.currency || "GBP");
+
+                  return (
+                    <tr key={`${row.orderId}-${row.lineItemId}`}>
+                      <td className="mono">{row.orderId}</td>
+                      <td>{row.title}</td>
+                      <td className="mono">{row.sku || "—"}</td>
+                      <td>
+                        {Object.entries(row.variants || {})
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(", ") || "—"}
+                      </td>
+                      <td className="mono">{row.quantity}</td>
+                      <td className="mono">
+                        {new Intl.NumberFormat("en-GB", {
+                          style: "currency",
+                          currency: row.currency || "GBP",
+                          maximumFractionDigits: 2,
+                        }).format(row.orderTotal || 0)}
+                      </td>
+                      <td>{row.shipTo?.fullName || row.buyerUsername}</td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <span>
+                            {[
+                              row.shipTo?.addressLine1,
+                              row.shipTo?.city,
+                              row.shipTo?.stateOrProvince,
+                              row.shipTo?.postalCode,
+                              row.shipTo?.countryCode,
+                              row.shipTo?.phone,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                          <a
+                            href={aliExpressUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-secondary btn-sm"
+                            style={{ width: "fit-content" }}
+                          >
+                            AliExpress ≤ {new Intl.NumberFormat("en-GB", {
+                              style: "currency",
+                              currency: row.currency || "GBP",
+                              maximumFractionDigits: 2,
+                            }).format(maxTarget)}
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
