@@ -15,6 +15,7 @@ export default function StoreOrdersPage() {
   const [error, setError] = useState("");
   const [pageSize, setPageSize] = useState(15);
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedRowId, setExpandedRowId] = useState(null);
 
   const allRows = useMemo(
     () =>
@@ -222,98 +223,130 @@ export default function StoreOrdersPage() {
                     targetProfit,
                     row.currency || "GBP"
                   );
+                  const rowKey = `${row.orderId}-${row.lineItemId}`;
+                  const isExpanded = expandedRowId === rowKey;
 
                   return (
-                    <tr key={`${row.orderId}-${row.lineItemId}`}>
-                      <td className="mono">{row.orderId}</td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          {row.imageUrl ? (
-                            <img
-                              src={row.imageUrl}
-                              alt={row.title || "Product image"}
-                              style={{
-                                width: 40,
-                                height: 40,
-                                objectFit: "cover",
-                                borderRadius: 6,
-                                border: "1px solid #ddd",
-                                background: "#f5f5f5",
-                              }}
-                            />
-                          ) : (
-                            <div
-                              style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: 6,
-                                border: "1px solid #ddd",
-                                background: "#f5f5f5",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 10,
-                                color: "#666",
-                              }}
-                            >
-                              IMG
-                            </div>
-                          )}
-                          <span>{row.title}</span>
-                        </div>
-                      </td>
-                      <td className="mono">{row.sku || "—"}</td>
-                      <td>
-                        {Object.entries(row.variants || {})
-                          .map(([k, v]) => `${k}: ${v}`)
-                          .join(", ") || "—"}
-                      </td>
-                      <td className="mono">{row.quantity}</td>
-                      <td className="mono">
-                        {new Intl.NumberFormat("en-GB", {
-                          style: "currency",
-                          currency: row.currency || "GBP",
-                          maximumFractionDigits: 2,
-                        }).format(row.estimatedEarnings || 0)}
-                      </td>
-                      <td>{row.shipTo?.fullName || row.buyerUsername}</td>
-                      <td>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <span>
-                            {[
-                              row.shipTo?.addressLine1,
-                              row.shipTo?.city,
-                              row.shipTo?.stateOrProvince,
-                              row.shipTo?.postalCode,
-                              row.shipTo?.countryCode,
-                              row.shipTo?.phone,
-                            ]
-                              .filter(Boolean)
-                              .join(", ")}
-                          </span>
-
-                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "2px" }}>
-                            {suggestions.map((item) => (
-                              <a
-                                key={`${row.lineItemId}-${item.label}`}
-                                href={item.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-secondary btn-sm"
-                                style={{ width: "fit-content" }}
-                                title={`${item.reason} · ${item.score}% match`}
+                    <>
+                      <tr key={rowKey}>
+                        <td className="mono">
+                          <button
+                            type="button"
+                            aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                            onClick={() => setExpandedRowId(isExpanded ? null : rowKey)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              cursor: "pointer",
+                              fontSize: 16,
+                              color: "#1f2937",
+                              padding: 0,
+                              marginRight: 8,
+                              lineHeight: 1,
+                            }}
+                          >
+                            {isExpanded ? "▾" : "▸"}
+                          </button>
+                          {row.orderId}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            {row.imageUrl ? (
+                              <img
+                                src={row.imageUrl}
+                                alt={row.title || "Product image"}
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  objectFit: "cover",
+                                  borderRadius: 6,
+                                  border: "1px solid #ddd",
+                                  background: "#f5f5f5",
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: 6,
+                                  border: "1px solid #ddd",
+                                  background: "#f5f5f5",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 10,
+                                  color: "#666",
+                                }}
                               >
-                                {item.label}: {item.score}% · {new Intl.NumberFormat("en-GB", {
-                                  style: "currency",
-                                  currency: row.currency || "GBP",
-                                  maximumFractionDigits: 2,
-                                }).format(targetProfit)} max
-                              </a>
-                            ))}
+                                IMG
+                              </div>
+                            )}
+                            <span>{row.title}</span>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="mono">{row.sku || "—"}</td>
+                        <td>
+                          {Object.entries(row.variants || {})
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(", ") || "—"}
+                        </td>
+                        <td className="mono">{row.quantity}</td>
+                        <td className="mono">
+                          {new Intl.NumberFormat("en-GB", {
+                            style: "currency",
+                            currency: row.currency || "GBP",
+                            maximumFractionDigits: 2,
+                          }).format(row.estimatedEarnings || 0)}
+                        </td>
+                        <td>{row.shipTo?.fullName || row.buyerUsername}</td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            <span>
+                              {[
+                                row.shipTo?.addressLine1,
+                                row.shipTo?.city,
+                                row.shipTo?.stateOrProvince,
+                                row.shipTo?.postalCode,
+                                row.shipTo?.countryCode,
+                                row.shipTo?.phone,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr key={`${rowKey}-details`}>
+                          <td colSpan={8} style={{ background: "#fafafa", padding: "14px 16px" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              <div style={{ fontWeight: 600 }}>Product match ideas</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                {suggestions.map((item) => (
+                                  <a
+                                    key={`${row.lineItemId}-${item.label}`}
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ width: "fit-content" }}
+                                    title={`${item.reason} · ${item.score}% match`}
+                                  >
+                                    {item.label}: {item.score}% · {new Intl.NumberFormat("en-GB", {
+                                      style: "currency",
+                                      currency: row.currency || "GBP",
+                                      maximumFractionDigits: 2,
+                                    }).format(targetProfit)} max
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>
