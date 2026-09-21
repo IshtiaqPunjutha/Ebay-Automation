@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -12,6 +12,52 @@ export default function StoreOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pageSize, setPageSize] = useState(15);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const allRows = useMemo(
+    () =>
+      orders.flatMap((order) =>
+        (order.lineItems || []).map((li) => ({
+          ...li,
+          orderId: order.orderId,
+          orderTotal: order.orderTotal || 0,
+          currency: order.currency || "GBP",
+          buyerUsername: order.buyerUsername || order.shipTo?.fullName || "—",
+          shipTo: order.shipTo,
+        }))
+      ),
+    [orders]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [orders, pageSize]);
+
+  const paginatedRows = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return allRows.slice(startIndex, startIndex + pageSize);
+  }, [allRows, currentPage, pageSize]);
+
+  const metrics = (() => {
+    const totalOrders = orders.length ? new Set(orders.map((o) => o.orderId)).size : 0;
+    const totalUnits = orders.reduce(
+      (sum, order) => sum + (order.itemCount || 0),
+      0
+    );
+    const totalRevenue = orders.reduce(
+      (sum, order) => sum + (Number(order.orderTotal) || 0),
+      0
+    );
+
+    return {
+      totalOrders,
+      totalUnits,
+      totalRevenue,
+    };
+  })();
 
   async function loadStoreLabel() {
     const res = await fetch("/api/ebay/stores");
@@ -65,6 +111,29 @@ export default function StoreOrdersPage() {
       {error && <p className="text-error">{error}</p>}
       {loading && <p className="text-muted">Loading orders…</p>}
 
+      {!loading && orders.length > 0 && (
+        <div className="stat-grid" style={{ marginBottom: "20px" }}>
+          <div className="stat-card">
+            <div className="stat-value">{metrics.totalOrders}</div>
+            <div className="stat-label">Orders</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{metrics.totalUnits}</div>
+            <div className="stat-label">Items</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">
+              {new Intl.NumberFormat("en-GB", {
+                style: "currency",
+                currency: orders[0]?.currency || "GBP",
+                maximumFractionDigits: 2,
+              }).format(metrics.totalRevenue)}
+            </div>
+            <div className="stat-label">Order total</div>
+          </div>
+        </div>
+      )}
+
       {!loading && orders.length === 0 && !error && (
         <div className="empty-state">
           <p className="empty-title">No unshipped orders right now</p>
@@ -75,50 +144,96 @@ export default function StoreOrdersPage() {
       )}
 
       {!loading && orders.length > 0 && (
-        <div className="panel table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Order</th>
-                <th>Item</th>
-                <th>SKU</th>
-                <th>Variant</th>
-                <th>Qty</th>
-                <th>Buyer</th>
-                <th>Ship to</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) =>
-                order.lineItems.map((li) => (
-                  <tr key={li.lineItemId}>
-                    <td className="mono">{order.orderId}</td>
-                    <td>{li.title}</td>
-                    <td className="mono">{li.sku || "—"}</td>
+        <>
+          <div className="table-controls">
+            <div className="table-meta">
+              Showing {Math.min((currentPage - 1) * pageSize + 1, allRows.length)}-
+              {Math.min(currentPage * pageSize, allRows.length)} of {allRows.length} rows
+            </div>
+            <div className="pager-controls">
+              <button
+                className="pager-btn"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Prev
+              </button>
+              <label className="page-size-picker">
+                <span>Rows</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value={15}>15</option>
+                  <option value={30}>30</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </label>
+              <button
+                className="pager-btn"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div className="panel table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Item</th>
+                  <th>SKU</th>
+                  <th>Variant</th>
+                  <th>Qty</th>
+                  <th>Order total</th>
+                  <th>Buyer</th>
+                  <th>Ship to</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRows.map((row) => (
+                  <tr key={`${row.orderId}-${row.lineItemId}`}>
+                    <td className="mono">{row.orderId}</td>
+                    <td>{row.title}</td>
+                    <td className="mono">{row.sku || "—"}</td>
                     <td>
-                      {Object.entries(li.variants || {})
+                      {Object.entries(row.variants || {})
                         .map(([k, v]) => `${k}: ${v}`)
                         .join(", ") || "—"}
                     </td>
-                    <td className="mono">{li.quantity}</td>
-                    <td>{order.shipTo.fullName || order.buyerUsername}</td>
+                    <td className="mono">{row.quantity}</td>
+                    <td className="mono">
+                      {new Intl.NumberFormat("en-GB", {
+                        style: "currency",
+                        currency: row.currency || "GBP",
+                        maximumFractionDigits: 2,
+                      }).format(row.orderTotal || 0)}
+                    </td>
+                    <td>{row.shipTo?.fullName || row.buyerUsername}</td>
                     <td>
                       {[
-                        order.shipTo.addressLine1,
-                        order.shipTo.city,
-                        order.shipTo.stateOrProvince,
-                        order.shipTo.postalCode,
-                        order.shipTo.countryCode,
+                        row.shipTo?.addressLine1,
+                        row.shipTo?.city,
+                        row.shipTo?.stateOrProvince,
+                        row.shipTo?.postalCode,
+                        row.shipTo?.countryCode,
                       ]
                         .filter(Boolean)
                         .join(", ")}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
