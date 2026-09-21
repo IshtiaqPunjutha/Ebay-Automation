@@ -17,21 +17,31 @@ export default function StoreOrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRowId, setExpandedRowId] = useState(null);
 
-  const allRows = useMemo(
-    () =>
-      orders.flatMap((order) =>
-        (order.lineItems || []).map((li) => ({
-          ...li,
-          orderId: order.orderId,
-          orderTotal: order.orderTotal || 0,
-          estimatedEarnings: estimateOrderEarnings(order.orderTotal || 0),
-          currency: order.currency || "GBP",
-          buyerUsername: order.buyerUsername || order.shipTo?.fullName || "—",
-          shipTo: order.shipTo,
-        }))
-      ),
-    [orders]
-  );
+  const allRows = useMemo(() => {
+    const rows = orders.flatMap((order) =>
+      (order.lineItems || []).map((li) => ({
+        ...li,
+        orderId: order.orderId,
+        orderTotal: order.orderTotal || 0,
+        estimatedEarnings: estimateOrderEarnings(order.orderTotal || 0),
+        currency: order.currency || "GBP",
+        buyerUsername: order.buyerUsername || order.shipTo?.fullName || "—",
+        shipTo: order.shipTo,
+      }))
+    );
+
+    console.log("MAPPED_ORDER_ROWS", rows);
+    console.log(
+      "IMAGE_SAMPLE",
+      rows.slice(0, 5).map((row) => ({
+        title: row.title,
+        imageUrl: row.imageUrl,
+        orderId: row.orderId,
+      }))
+    );
+
+    return rows;
+  }, [orders]);
 
   const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
 
@@ -84,6 +94,8 @@ export default function StoreOrdersPage() {
     try {
       const res = await fetch(`/api/ebay/orders?store=${encodeURIComponent(storeId)}`);
       const data = await res.json();
+      console.log("RAW_EBAY_ORDERS_RESPONSE", data);
+      console.log("RAW_EBAY_ORDERS_ARRAY", data.orders || []);
       setOrders(data.orders || []);
       if (data.error) setError(data.error);
     } catch (err) {

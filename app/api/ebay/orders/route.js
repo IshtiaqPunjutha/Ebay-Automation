@@ -38,6 +38,7 @@ export async function GET(request) {
     }
 
     const orders = await fetchUnshippedOrders(storeRecord.tokens.accessToken);
+    console.log("SERVER_RAW_ORDERS", JSON.stringify(orders, null, 2));
     return NextResponse.json({ orders });
   } catch (err) {
     console.error(`Error fetching orders for store ${storeId}:`, err);
