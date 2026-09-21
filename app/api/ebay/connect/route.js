@@ -12,7 +12,7 @@ export async function GET() {
   const res = NextResponse.redirect(authUrl);
   res.cookies.set("ebay_oauth_state", state, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 10, // 10 minutes is plenty for the login round-trip
