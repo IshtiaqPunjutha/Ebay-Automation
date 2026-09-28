@@ -51,6 +51,16 @@ export async function GET(request) {
     const orders = await fetchUnshippedOrders(storeRecord.tokens.accessToken, appToken.accessToken);
     return NextResponse.json({ orders });
   } catch (err) {
+    if (err.code === "invalid_grant") {
+      return NextResponse.json(
+        {
+          orders: [],
+          error: "This eBay connection needs to be authorized again.",
+          reconnectRequired: true,
+        },
+        { status: 409 }
+      );
+    }
     console.error(`Error fetching orders for store ${storeId}:`, err);
     return NextResponse.json({ orders: [], error: "Failed to fetch orders" }, { status: 500 });
   }

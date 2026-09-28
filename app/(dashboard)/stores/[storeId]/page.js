@@ -12,6 +12,7 @@ export default function StoreOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reconnectRequired, setReconnectRequired] = useState(false);
   const [expandedProduct, setExpandedProduct] = useState(null);
 
   async function loadStoreLabel() {
@@ -32,6 +33,7 @@ export default function StoreOrdersPage() {
       const res = await fetch(`/api/ebay/orders?store=${encodeURIComponent(storeId)}`);
       const data = await res.json();
       setOrders(data.orders || []);
+      setReconnectRequired(Boolean(data.reconnectRequired));
       if (data.error) setError(data.error);
     } catch (err) {
       setError("Could not load orders.");
@@ -63,7 +65,16 @@ export default function StoreOrdersPage() {
         </button>
       </div>
 
-      {error && <p className="text-error">{error}</p>}
+      {error && (
+        <div style={{ marginBottom: "16px" }}>
+          <p className="text-error">{error}</p>
+          {reconnectRequired && (
+            <a href="/api/ebay/connect" className="btn btn-primary" style={{ display: "inline-flex", marginTop: "8px", textDecoration: "none" }}>
+              Reconnect eBay
+            </a>
+          )}
+        </div>
+      )}
       {loading && <p className="text-muted">Loading orders…</p>}
 
       {!loading && orders.length === 0 && !error && (
