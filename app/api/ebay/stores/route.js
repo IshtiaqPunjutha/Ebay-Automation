@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { listEbayStores } from "@/lib/store";
+import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+export async function GET(request) {
   try {
-    const stores = await listEbayStores();
+    const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    if (!userId) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    const stores = await listEbayStores(userId);
     const shaped = stores.map((s) => ({
       storeId: s.storeId,
       label: s.label,

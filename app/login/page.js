@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [legacyPassword, setLegacyPassword] = useState("");
+  const [mode, setMode] = useState("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -14,17 +17,23 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    setLoading(false);
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/auth/${mode === "register" ? "register" : "login"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, legacyPassword }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setError(result.error || "Unable to sign in.");
+        return;
+      }
       router.push("/");
       router.refresh();
-    } else {
-      setError("That password isn't right.");
+    } catch {
+      setError("Unable to reach the server. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -76,20 +85,57 @@ export default function LoginPage() {
           Order Automation
         </h1>
         <p style={{ color: "var(--text-secondary)", fontSize: "13px", margin: "0 0 22px 0" }}>
-          Sign in to your fulfillment console.
+          {mode === "register" ? "Create an account to manage your own stores." : "Sign in to your fulfillment console."}
         </p>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "14px", padding: "3px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>
+          {[{ id: "login", label: "Log in" }, { id: "register", label: "Create account" }].map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => { setMode(option.id); setError(""); }}
+              aria-pressed={mode === option.id}
+              style={{ flex: 1, border: 0, borderRadius: "4px", padding: "7px 4px", cursor: "pointer", color: mode === option.id ? "var(--text-primary)" : "var(--text-secondary)", background: mode === option.id ? "var(--surface)" : "transparent", font: "inherit", fontSize: "12px" }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email address"
+          className="input"
+          style={{ marginBottom: "12px", textAlign: "left" }}
+          autoComplete="email"
+          required
+        />
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          placeholder={mode === "register" ? "Password (12+ characters)" : "Password"}
           className="input"
           style={{ marginBottom: "14px", textAlign: "left" }}
-          autoFocus
+          autoComplete={mode === "register" ? "new-password" : "current-password"}
+          minLength={mode === "register" ? 12 : undefined}
+          maxLength={128}
+          required
         />
+        {mode === "register" && (
+          <input
+            type="password"
+            value={legacyPassword}
+            onChange={(e) => setLegacyPassword(e.target.value)}
+            placeholder="Previous dashboard password (if migrating stores)"
+            className="input"
+            style={{ marginBottom: "14px", textAlign: "left" }}
+            autoComplete="off"
+          />
+        )}
         {error && <p className="text-error" style={{ marginBottom: "12px", marginTop: "-6px" }}>{error}</p>}
         <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "9px" }}>
-          {loading ? "Checking…" : "Log in"}
+          {loading ? "Please wait…" : mode === "register" ? "Create account" : "Log in"}
         </button>
         <a href="/privacy" style={{ display: "block", marginTop: "18px", color: "var(--text-tertiary)", fontSize: "11.5px", textDecoration: "none" }}>
           Privacy policy

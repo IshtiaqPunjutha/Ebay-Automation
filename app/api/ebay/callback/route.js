@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { exchangeCodeForTokens, fetchEbayIdentity } from "@/lib/ebay";
 import { saveEbayStore, slugifyStoreId } from "@/lib/store";
+import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 import crypto from "crypto";
 
 // Step 4 of the OAuth flow: eBay redirects here with ?code=... after the
@@ -11,7 +12,9 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const returnedState = searchParams.get("state");
-  const expectedState = request.cookies.get("ebay_oauth_state")?.value;
+  const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  const oauthStateCookie = request.cookies.get("ebay_oauth_state")?.value || "";
+  const [oauthUserId, expectedState] = oauthStateCookie.split(".");
 
   const baseUrl = process.env.APP_BASE_URL;
 
@@ -19,7 +22,7 @@ export async function GET(request) {
     return NextResponse.redirect(`${baseUrl}/?ebay_error=missing_code`);
   }
 
-  if (!expectedState || returnedState !== expectedState) {
+  if (!userId || oauthUserId !== userId || !expectedState || returnedState !== expectedState) {
     return NextResponse.redirect(`${baseUrl}/?ebay_error=state_mismatch`);
   }
 
@@ -33,7 +36,7 @@ export async function GET(request) {
     const label = identity?.username || `store-${crypto.randomBytes(3).toString("hex")}`;
     const storeId = slugifyStoreId(`production-${label}`);
 
-    await saveEbayStore(storeId, { tokens, label });
+    await saveEbayStore(userId, storeId, { tokens, label });
   } catch (err) {
     console.error("eBay OAuth callback error:", err);
     return NextResponse.redirect(`${baseUrl}/?ebay_error=token_exchange_failed`);

@@ -10,10 +10,9 @@ export default function PrivacyPolicy() {
         <p style={styles.updated}>Last updated: {new Date().toLocaleDateString()}</p>
 
         <p style={styles.p}>
-          This application is a private, internal order-fulfillment tool
-          used to connect an eBay seller account to a fulfillment workflow.
-          It is not a public-facing service and does not sell, share, or
-          expose data to third parties.
+          This application lets users create accounts and connect their own
+          eBay seller stores. Store credentials and order information are
+          isolated by account and are not available to other users.
         </p>
 
         <h2 style={styles.h2}>Data we access</h2>
@@ -34,9 +33,9 @@ export default function PrivacyPolicy() {
         <h2 style={styles.h2}>Data storage</h2>
         <p style={styles.p}>
           Access tokens and order data are stored securely and are only
-          accessible to the operator of this application. Data is not
-          shared with any third party other than the platforms directly
-          involved in order fulfillment.
+          stored in the application's KV database. Each signed-in account
+          can access only its own connected stores and related order data.
+          Data is sent only to eBay and services required to operate this app.
         </p>
 
         <h2 style={styles.h2}>Contact</h2>

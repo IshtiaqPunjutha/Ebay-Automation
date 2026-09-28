@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, Braces, RefreshCw } from "lucide-react";
 
 export default function StoreOrdersPage() {
   const { storeId } = useParams();
@@ -12,6 +12,7 @@ export default function StoreOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expandedProduct, setExpandedProduct] = useState(null);
 
   async function loadStoreLabel() {
     const res = await fetch("/api/ebay/stores");
@@ -89,12 +90,26 @@ export default function StoreOrdersPage() {
                 <th>Earnings</th>
                 <th>Buyer</th>
                 <th>Ship to</th>
+                <th>Product data</th>
               </tr>
             </thead>
             <tbody>
               {orders.map((order) =>
-                order.lineItems.map((li, idx) => (
-                  <tr key={li.lineItemId}>
+                order.lineItems.map((li, idx) => {
+                  const rowKey = `${order.orderId}-${li.lineItemId}`;
+                  const productData = {
+                    orderId: order.orderId,
+                    lineItemId: li.lineItemId,
+                    legacyItemId: li.legacyItemId,
+                    title: li.title,
+                    sku: li.sku,
+                    quantity: li.quantity,
+                    variants: li.variants,
+                    catalog: li.product,
+                  };
+                  return (
+                  <Fragment key={rowKey}>
+                  <tr>
                     <td>
                       {li.imageUrl ? (
                         <img
@@ -156,8 +171,36 @@ export default function StoreOrdersPage() {
                             .join(", ")
                         : ""}
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        title="Inspect product data"
+                        aria-label={`Inspect product data for ${li.title}`}
+                        aria-expanded={expandedProduct === rowKey}
+                        onClick={() => setExpandedProduct(expandedProduct === rowKey ? null : rowKey)}
+                        style={{ padding: "5px 7px" }}
+                      >
+                        <Braces size={14} strokeWidth={2} />
+                        Data
+                      </button>
+                    </td>
                   </tr>
-                ))
+                  {expandedProduct === rowKey && (
+                    <tr>
+                      <td colSpan={11}>
+                        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", padding: "12px" }}>
+                          <div style={{ color: "var(--text-secondary)", fontSize: "11px", marginBottom: "8px" }}>Fetched product data</div>
+                          <pre style={{ margin: 0, maxHeight: "320px", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-primary)", fontFamily: "var(--font-mono)", fontSize: "11px", lineHeight: 1.55 }}>
+                            {JSON.stringify(productData, null, 2)}
+                          </pre>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

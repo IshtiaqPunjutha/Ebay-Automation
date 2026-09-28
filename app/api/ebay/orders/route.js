@@ -11,9 +11,12 @@ import {
   getCachedAppToken,
   saveAppToken,
 } from "@/lib/store";
+import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
 // GET /api/ebay/orders?store=<storeId>
 export async function GET(request) {
+  const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  if (!userId) return NextResponse.json({ orders: [], error: "Authentication required" }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const storeId = searchParams.get("store");
 
@@ -21,7 +24,7 @@ export async function GET(request) {
     return NextResponse.json({ orders: [], error: "Missing store id" }, { status: 400 });
   }
 
-  let storeRecord = await getEbayStore(storeId);
+  let storeRecord = await getEbayStore(userId, storeId);
   if (!storeRecord) {
     return NextResponse.json({ orders: [], error: "Store not found" }, { status: 404 });
   }
@@ -31,6 +34,7 @@ export async function GET(request) {
     if (isTokenExpired(storeRecord.tokens)) {
       const refreshed = await refreshAccessToken(storeRecord.tokens.refreshToken);
       storeRecord = await updateStoreAccessToken(
+        userId,
         storeId,
         refreshed.accessToken,
         refreshed.expiresIn
