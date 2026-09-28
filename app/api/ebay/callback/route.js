@@ -31,8 +31,7 @@ export async function GET(request) {
     // random id rather than failing the whole connection.
     const identity = await fetchEbayIdentity(tokens.accessToken);
     const label = identity?.username || `store-${crypto.randomBytes(3).toString("hex")}`;
-    const environmentTag = process.env.EBAY_ENV || "production";
-    const storeId = slugifyStoreId(`${environmentTag}-${label}`);
+    const storeId = slugifyStoreId(`production-${label}`);
 
     await saveEbayStore(storeId, { tokens, label });
   } catch (err) {
