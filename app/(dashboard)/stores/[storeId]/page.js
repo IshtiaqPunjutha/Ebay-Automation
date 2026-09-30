@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Braces, RefreshCw } from "lucide-react";
+import { ArrowLeft, Braces, RefreshCw, Search } from "lucide-react";
 
 export default function StoreOrdersPage() {
   const { storeId } = useParams();
@@ -14,6 +14,8 @@ export default function StoreOrdersPage() {
   const [error, setError] = useState("");
   const [reconnectRequired, setReconnectRequired] = useState(false);
   const [expandedProduct, setExpandedProduct] = useState(null);
+  const [imageSearchStatus, setImageSearchStatus] = useState("");
+  const [imageSearchPending, setImageSearchPending] = useState(false);
 
   async function loadStoreLabel() {
     const res = await fetch("/api/ebay/stores");
@@ -39,6 +41,49 @@ export default function StoreOrdersPage() {
       setError("Could not load orders.");
     }
     setLoading(false);
+  }
+
+  async function searchAliExpressByImage(imageUrl) {
+    if (!navigator.clipboard?.write || !window.ClipboardItem) {
+      setImageSearchStatus("Image clipboard is not supported by this browser.");
+      return;
+    }
+
+    setImageSearchPending(true);
+    setImageSearchStatus("Preparing image for AliExpress...");
+
+    try {
+      const imageBlob = fetch(`/api/ebay/image-search?url=${encodeURIComponent(imageUrl)}`)
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Could not load this eBay product image.");
+          return await response.blob();
+        })
+        .then(async (blob) => {
+          const bitmap = await createImageBitmap(blob);
+          const canvas = document.createElement("canvas");
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          canvas.getContext("2d").drawImage(bitmap, 0, 0);
+          bitmap.close();
+          return await new Promise((resolve, reject) => {
+            canvas.toBlob((png) => {
+              if (png) resolve(png);
+              else reject(new Error("Could not prepare the product image."));
+            }, "image/png");
+          });
+        });
+
+      const copyPromise = navigator.clipboard.write([
+        new ClipboardItem({ "image/png": imageBlob }),
+      ]);
+      window.open("https://www.aliexpress.com/", "_blank", "noopener,noreferrer");
+      await copyPromise;
+      setImageSearchStatus("Image copied. In AliExpress, click the camera icon, then press Ctrl+V.");
+    } catch (error) {
+      setImageSearchStatus(error.message || "Could not copy the image. Please try again.");
+    } finally {
+      setImageSearchPending(false);
+    }
   }
 
   useEffect(() => {
@@ -76,6 +121,11 @@ export default function StoreOrdersPage() {
         </div>
       )}
       {loading && <p className="text-muted">Loading orders…</p>}
+      {imageSearchStatus && (
+        <p className={imageSearchStatus.startsWith("Could not") || imageSearchStatus.startsWith("Image clipboard") ? "text-error" : "text-muted"} role="status">
+          {imageSearchStatus}
+        </p>
+      )}
 
       {!loading && orders.length === 0 && !error && (
         <div className="empty-state">
@@ -123,18 +173,31 @@ export default function StoreOrdersPage() {
                   <tr>
                     <td>
                       {li.imageUrl ? (
-                        <img
-                          src={li.imageUrl}
-                          alt=""
-                          style={{
-                            width: "34px",
-                            height: "34px",
-                            objectFit: "cover",
-                            borderRadius: "6px",
-                            border: "1px solid var(--border)",
-                            display: "block",
-                          }}
-                        />
+                        <>
+                          <img
+                            src={li.imageUrl}
+                            alt=""
+                            style={{
+                              width: "34px",
+                              height: "34px",
+                              objectFit: "cover",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border)",
+                              display: "block",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            title="Copy product image and open AliExpress"
+                            aria-label={`Search AliExpress by image for ${li.title}`}
+                            disabled={imageSearchPending}
+                            onClick={() => searchAliExpressByImage(li.imageUrl)}
+                            style={{ padding: "5px 7px", marginTop: "4px" }}
+                          >
+                            <Search size={14} strokeWidth={2} />
+                          </button>
+                        </>
                       ) : (
                         <div
                           style={{
