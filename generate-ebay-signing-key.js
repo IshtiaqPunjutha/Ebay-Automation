@@ -4,7 +4,7 @@ const { loadEnvConfig } = require("@next/env");
 
 loadEnvConfig(process.cwd());
 
-async function requestJson(url, options) {
+async function requestJson(url, options, requestName) {
   const response = await fetch(url, options);
   const text = await response.text();
   let data;
@@ -14,8 +14,12 @@ async function requestJson(url, options) {
     throw new Error(`eBay returned an unreadable response (${response.status}).`);
   }
   if (!response.ok) {
-    const message = data.errors?.map((error) => error.message).filter(Boolean).join("; ");
-    throw new Error(`eBay request failed (${response.status})${message ? `: ${message}` : "."}`);
+    const message =
+      data.errors?.map((error) => error.message).filter(Boolean).join("; ") ||
+      data.error_description ||
+      data.error ||
+      "No error details returned.";
+    throw new Error(`${requestName} failed (${response.status}): ${message}`);
   }
   return data;
 }
@@ -33,17 +37,21 @@ async function main() {
     throw new Error("Signing-key variables already exist locally. Remove them before generating a replacement key.");
   }
 
-  const appToken = await requestJson("https://api.ebay.com/identity/v1/oauth2/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+  const appToken = await requestJson(
+    "https://api.ebay.com/identity/v1/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        scope: "https://api.ebay.com/oauth/api_scope",
+      }),
     },
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-      scope: "https://api.ebay.com/oauth/api_scope",
-    }),
-  });
+    "eBay application-token request"
+  );
 
   const signingKey = await requestJson(
     "https://apiz.ebay.com/developer/key_management/v1/signing_key",
@@ -54,7 +62,8 @@ async function main() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ signingKeyCipher: "ED25519" }),
-    }
+    },
+    "eBay signing-key creation"
   );
 
   if (!signingKey.jwe || !signingKey.privateKey) {
