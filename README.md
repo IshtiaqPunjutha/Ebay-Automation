@@ -41,9 +41,22 @@ production:
 - `APP_PASSWORD` — temporarily retain the previous shared dashboard password
   if migrating its existing eBay stores; remove it after the first account signup
 - `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_RUNAME` — from step 1
+- `EBAY_SIGNATURE_KEY_JWE`, `EBAY_SIGNATURE_PRIVATE_KEY` — generated with
+  eBay's [Key Management API](https://developer.ebay.com/api-docs/developer/key-management/overview.html).
+  The private key is returned only once; store it securely as a Vercel
+  environment variable and never commit it to Git.
 - `EBAY_ENV` — set to `production`
 - `APP_BASE_URL` — your deployed Vercel URL, e.g. `https://your-app.vercel.app`
 - `KV_REST_API_URL`, `KV_REST_API_TOKEN` — from step 2
+
+The Finances API requires eBay digital-signature headers for UK/EU sellers.
+The app uses eBay's Node.js signing SDK for these requests. From the project
+folder, run `node generate-ebay-signing-key.js`. The script uses the
+Production app credentials in `.env.local`, creates an `ED25519` keypair, and
+saves `EBAY_SIGNATURE_KEY_JWE` and `EBAY_SIGNATURE_PRIVATE_KEY` to the ignored
+`.env.local` file without printing them. Copy those two values into Vercel's
+Production environment variables, then redeploy. eBay returns the private key
+only once, so keep it secure and never commit it to Git.
 
 ### 4. Deploy
 ```bash

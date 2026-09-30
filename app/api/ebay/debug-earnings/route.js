@@ -4,7 +4,11 @@ import {
   getEbayStore,
   updateStoreAccessToken,
 } from "@/lib/store";
-import { isTokenExpired, refreshAccessToken } from "@/lib/ebay";
+import {
+  createEbaySignatureHeaders,
+  isTokenExpired,
+  refreshAccessToken,
+} from "@/lib/ebay";
 
 export async function GET(request) {
   const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
@@ -39,15 +43,15 @@ export async function GET(request) {
     }
 
     const params = new URLSearchParams({ filter: `orderId:{${orderId}}` });
-    const response = await fetch(
-      `https://apiz.ebay.com/sell/finances/v1/transaction?${params.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${storeRecord.tokens.accessToken}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const url = new URL(`https://apiz.ebay.com/sell/finances/v1/transaction?${params.toString()}`);
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${storeRecord.tokens.accessToken}`,
+        "Content-Type": "application/json",
+        "X-EBAY-C-MARKETPLACE-ID": process.env.EBAY_MARKETPLACE_ID || "EBAY_GB",
+        ...createEbaySignatureHeaders(url),
+      },
+    });
     const responseText = await response.text();
     let body = responseText;
     try {
