@@ -44,15 +44,10 @@ export default function StoreOrdersPage() {
   }
 
   async function searchAliExpressByImage(imageUrl) {
-    if (!navigator.clipboard?.write || !window.ClipboardItem) {
-      setImageSearchStatus("Image clipboard is not supported by this browser.");
-      return;
-    }
+    const searchUrl = `https://www.aliexpress.com/?ebayImageSearch=${encodeURIComponent(imageUrl)}`;
+    let copyPromise = null;
 
-    setImageSearchPending(true);
-    setImageSearchStatus("Preparing image for AliExpress...");
-
-    try {
+    if (navigator.clipboard?.write && window.ClipboardItem) {
       const imageBlob = fetch(`/api/ebay/image-search?url=${encodeURIComponent(imageUrl)}`)
         .then(async (response) => {
           if (!response.ok) throw new Error("Could not load this eBay product image.");
@@ -72,15 +67,28 @@ export default function StoreOrdersPage() {
             }, "image/png");
           });
         });
+      try {
+        copyPromise = navigator.clipboard.write([
+          new ClipboardItem({ "image/png": imageBlob }),
+        ]);
+      } catch (error) {
+        copyPromise = null;
+      }
+    }
 
-      const copyPromise = navigator.clipboard.write([
-        new ClipboardItem({ "image/png": imageBlob }),
-      ]);
-      window.open("https://www.aliexpress.com/", "_blank", "noopener,noreferrer");
+    window.open(searchUrl, "_blank", "noopener,noreferrer");
+    if (!copyPromise) {
+      setImageSearchStatus("AliExpress opened. Install the image-search extension for automatic search.");
+      return;
+    }
+
+    setImageSearchPending(true);
+    setImageSearchStatus("Preparing image for AliExpress...");
+    try {
       await copyPromise;
-      setImageSearchStatus("Image copied. In AliExpress, click the camera icon, then press Ctrl+V.");
+      setImageSearchStatus("Image copied. With the extension it will search automatically; otherwise click AliExpress's camera icon and press Ctrl+V.");
     } catch (error) {
-      setImageSearchStatus(error.message || "Could not copy the image. Please try again.");
+      setImageSearchStatus("AliExpress opened, but clipboard copy failed. Install the image-search extension for automatic search.");
     } finally {
       setImageSearchPending(false);
     }
