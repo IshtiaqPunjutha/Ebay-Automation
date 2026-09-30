@@ -51,10 +51,11 @@ production:
 
 The Finances API requires eBay digital-signature headers for UK/EU sellers.
 The app uses eBay's Node.js signing SDK for these requests. From the project
-folder, run `node generate-ebay-signing-key.js`. The script uses the
+folder, run `node generate-ebay-signing-key.js`. To replace an existing local
+signing key, run `node generate-ebay-signing-key.js --replace`. The script uses the
 Production app credentials in `.env.local`, creates an `ED25519` keypair, and
-saves `EBAY_SIGNATURE_KEY_JWE` and `EBAY_SIGNATURE_PRIVATE_KEY` to the ignored
-`.env.local` file without printing them. Copy those two values into Vercel's
+saves `EBAY_SIGNATURE_KEY_JWE` and PEM-formatted `EBAY_SIGNATURE_PRIVATE_KEY`
+to the ignored `.env.local` file without printing them. Copy those two values into Vercel's
 Production environment variables, then redeploy. eBay returns the private key
 only once, so keep it secure and never commit it to Git.
 

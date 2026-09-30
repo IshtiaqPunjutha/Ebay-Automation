@@ -24,6 +24,17 @@ async function requestJson(url, options, requestName) {
   return data;
 }
 
+function formatPrivateKeyPem(privateKey) {
+  const value = String(privateKey).trim();
+  if (value.includes("-----BEGIN PRIVATE KEY-----")) return value;
+  const encoded = value.replace(/\s/g, "");
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) {
+    throw new Error("eBay returned an unrecognized private-key format.");
+  }
+  const lines = encoded.match(/.{1,64}/g);
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----`;
+}
+
 async function main() {
   const clientId = process.env.EBAY_CLIENT_ID;
   const clientSecret = process.env.EBAY_CLIENT_SECRET;
@@ -33,8 +44,9 @@ async function main() {
 
   const existingJwe = process.env.EBAY_SIGNATURE_KEY_JWE;
   const existingPrivateKey = process.env.EBAY_SIGNATURE_PRIVATE_KEY;
-  if (existingJwe || existingPrivateKey) {
-    throw new Error("Signing-key variables already exist locally. Remove them before generating a replacement key.");
+  const replaceExisting = process.argv.includes("--replace");
+  if ((existingJwe || existingPrivateKey) && !replaceExisting) {
+    throw new Error("Signing-key variables already exist locally. Use --replace only when you intend to replace them.");
   }
 
   const appToken = await requestJson(
@@ -77,7 +89,7 @@ async function main() {
   const retainedLines = original
     .split(/\r?\n/)
     .filter((line) => !/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=/.test(line) || !variables.has(line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=/)?.[1]));
-  const privateKey = signingKey.privateKey.replace(/\r?\n/g, "\\n");
+  const privateKey = formatPrivateKeyPem(signingKey.privateKey).replace(/\r?\n/g, "\\n");
   retainedLines.push(`EBAY_SIGNATURE_KEY_JWE=${signingKey.jwe}`);
   retainedLines.push(`EBAY_SIGNATURE_PRIVATE_KEY="${privateKey}"`);
   fs.writeFileSync(envPath, `${retainedLines.join(lineEnding).replace(/\r?\n*$/, "")}${lineEnding}`, "utf8");
