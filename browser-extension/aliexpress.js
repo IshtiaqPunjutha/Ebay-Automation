@@ -3,8 +3,11 @@
   const imageUrl = currentUrl.searchParams.get("ebayImageSearch");
   if (!imageUrl) return;
 
-  currentUrl.searchParams.delete("ebayImageSearch");
-  window.history.replaceState({}, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+  function clearSearchRequest() {
+    const completedUrl = new URL(window.location.href);
+    completedUrl.searchParams.delete("ebayImageSearch");
+    window.history.replaceState({}, "", `${completedUrl.pathname}${completedUrl.search}${completedUrl.hash}`);
+  }
 
   function showStatus(message, isError = false) {
     let status = document.getElementById("ebay-image-search-status");
@@ -30,7 +33,7 @@
     status.textContent = message;
   }
 
-  function waitForElement(selector, timeoutMs = 15000) {
+  function waitForElement(selector, timeoutMs = 30000) {
     return new Promise((resolve, reject) => {
       const existing = document.querySelector(selector);
       if (existing) return resolve(existing);
@@ -75,6 +78,7 @@
     fileInput.files = transfer.files;
     fileInput.dispatchEvent(new Event("input", { bubbles: true }));
     fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+    clearSearchRequest();
     showStatus("Image sent to AliExpress. Waiting for visual search results...");
   }
 
