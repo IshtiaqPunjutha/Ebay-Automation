@@ -94,6 +94,15 @@ export default function StoreOrdersPage() {
     }
   }
 
+  function searchAliExpressByTitle(title, variants) {
+    const variantText = Object.values(variants || {}).join(" ");
+    const searchText = [title, variantText].filter(Boolean).join(" ");
+    const searchUrl = new URL("https://www.aliexpress.com/w/wholesale.html");
+    searchUrl.searchParams.set("SearchText", searchText);
+    window.open(searchUrl, "_blank", "noopener,noreferrer");
+    setImageSearchStatus("No eBay image is available. AliExpress opened with the product title and variant.");
+  }
+
   useEffect(() => {
     if (!storeId) return;
     loadStoreLabel();
@@ -207,15 +216,27 @@ export default function StoreOrdersPage() {
                           </button>
                         </>
                       ) : (
-                        <div
-                          style={{
-                            width: "34px",
-                            height: "34px",
-                            borderRadius: "6px",
-                            border: "1px solid var(--border)",
-                            background: "var(--surface-2)",
-                          }}
-                        />
+                        <>
+                          <div
+                            style={{
+                              width: "34px",
+                              height: "34px",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border)",
+                              background: "var(--surface-2)",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            title="Search AliExpress by product title"
+                            aria-label={`Search AliExpress by title for ${li.title}`}
+                            onClick={() => searchAliExpressByTitle(li.title, li.variants)}
+                            style={{ padding: "5px 7px", marginTop: "4px" }}
+                          >
+                            <Search size={14} strokeWidth={2} />
+                          </button>
+                        </>
                       )}
                     </td>
                     <td className="mono">{order.orderId}</td>
