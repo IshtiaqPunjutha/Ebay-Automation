@@ -54,7 +54,22 @@
     });
   }
 
+  function waitForPageLoad(timeoutMs = 10000) {
+    if (document.readyState === "complete") return Promise.resolve();
+
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timeout);
+        window.removeEventListener("load", finish);
+        resolve();
+      };
+      const timeout = setTimeout(finish, timeoutMs);
+      window.addEventListener("load", finish, { once: true });
+    });
+  }
+
   async function startImageSearch() {
+    await waitForPageLoad();
     showStatus("Preparing the eBay image for AliExpress...");
     const imageResponse = await chrome.runtime.sendMessage({
       type: "FETCH_EBAY_PRODUCT_IMAGE",
