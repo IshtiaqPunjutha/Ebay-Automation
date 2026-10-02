@@ -5,6 +5,46 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Braces, RefreshCw, Search } from "lucide-react";
 
+function ProductImage({ imageUrl, title }) {
+  const proxyUrl = `/api/ebay/image-search?url=${encodeURIComponent(imageUrl)}`;
+  const [src, setSrc] = useState(imageUrl);
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div
+        title="eBay image could not be loaded"
+        style={{
+          width: "34px",
+          height: "34px",
+          borderRadius: "6px",
+          border: "1px solid var(--border)",
+          background: "var(--surface-2)",
+        }}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={title}
+      onError={() => {
+        if (src !== proxyUrl) setSrc(proxyUrl);
+        else setFailed(true);
+      }}
+      style={{
+        width: "34px",
+        height: "34px",
+        objectFit: "cover",
+        borderRadius: "6px",
+        border: "1px solid var(--border)",
+        display: "block",
+      }}
+    />
+  );
+}
+
 export default function StoreOrdersPage() {
   const { storeId } = useParams();
   const router = useRouter();
@@ -191,18 +231,7 @@ export default function StoreOrdersPage() {
                     <td>
                       {li.imageUrl ? (
                         <>
-                          <img
-                            src={li.imageUrl}
-                            alt=""
-                            style={{
-                              width: "34px",
-                              height: "34px",
-                              objectFit: "cover",
-                              borderRadius: "6px",
-                              border: "1px solid var(--border)",
-                              display: "block",
-                            }}
-                          />
+                          <ProductImage imageUrl={li.imageUrl} title={li.title} />
                           <button
                             type="button"
                             className="btn btn-ghost"
