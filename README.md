@@ -89,3 +89,12 @@ npx vercel deploy --prod
 - Browser extension: AliExpress auto-fill (product page, address popup,
   variant, quantity) + review-before-submit screen
 - Tracking number sync back to eBay via Fulfillment API
+
+## Store pages and sheet mapping
+
+- Inside a store the sidebar switches to that store's menu: **Orders** and
+  **Sheet mapping**.
+- **Sheet mapping** (`/stores/<id>/sheet`) is a per-store grid for pairing an
+  eBay link with its AliExpress link (plus notes). It autosaves to Vercel KV
+  through `/api/ebay/sheet` and accepts pasted rows from Excel or Google Sheets.
+  The sheet is kept if the store is disconnected.
