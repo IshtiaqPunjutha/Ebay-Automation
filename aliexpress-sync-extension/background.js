@@ -49,6 +49,43 @@ async function api(path, options = {}) {
   }
 }
 
+// The dashboard is the source of truth for "which AliExpress numbers are on which eBay order".
+// The list kept in this browser can go stale (a number removed or added in the dashboard), so it
+// is compared with the dashboard from time to time. Stores that cannot be reached keep their old entries.
+let lastReconcile = 0;
+const RECONCILE_EVERY_MS = 20 * 1000;
+
+async function reconcileSynced(force = false) {
+  if (!force && Date.now() - lastReconcile < RECONCILE_EVERY_MS) return;
+  lastReconcile = Date.now();
+
+  const stores = await api("/api/ext/stores");
+  if (!stores.ok) return;
+
+  const covered = new Set();
+  const truth = {};
+  await Promise.all(
+    (stores.data.stores || []).map(async (store) => {
+      const res = await api(`/api/ext/refs?store=${encodeURIComponent(store.storeId)}`);
+      if (!res.ok) return;
+      covered.add(store.storeId);
+      for (const [orderId, entry] of Object.entries(res.data.refs || {})) {
+        for (const aliOrderId of entry.aliOrderIds || []) {
+          truth[aliOrderId] = { orderId, storeId: store.storeId, at: entry.updatedAt || Date.now() };
+        }
+      }
+    })
+  );
+
+  const { synced } = await chrome.storage.local.get("synced");
+  const next = {};
+  for (const [id, value] of Object.entries(synced || {})) {
+    if (!covered.has(value.storeId)) next[id] = value;
+  }
+  Object.assign(next, truth);
+  await chrome.storage.local.set({ synced: next });
+}
+
 // eBay orders that still need an AliExpress number, asked of the dashboard for every
 // connected store. Kept for a short while so pressing Sync on several orders in a row
 // does not ask eBay each time.
@@ -112,6 +149,11 @@ async function handle(message) {
       await removePending(String(message.orderId), String(message.storeId));
       return { ok: true };
     case "GET_STATE": {
+      try {
+        await reconcileSynced();
+      } catch (e) {
+        // Offline or the dashboard is down: keep showing what was last known.
+      }
       const settings = await getSettings();
       const { synced } = await chrome.storage.local.get("synced");
       return {
@@ -135,6 +177,7 @@ async function handle(message) {
         delete next[message.aliOrderId];
         await chrome.storage.local.set({ synced: next });
         candidateCache = null;
+        lastReconcile = 0;
       }
       return result;
     }

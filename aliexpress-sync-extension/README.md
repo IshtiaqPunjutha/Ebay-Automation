@@ -29,6 +29,7 @@ You do not have to use the arrow: the extension asks the dashboard which eBay or
 - The Sync button is placed next to the "Ref. Number: 3077062172300812" shown on each AliExpress
   order (also "Order ID" and `?orderId=` in the address). AliExpress changes its pages from time
   to time; if the button stops appearing, that detection (`lib.js`) is the place to adjust.
+- The dashboard is the source of truth: the extension checks it every few seconds and shows **Synced** only for numbers that are really on an order there. Remove a number in the dashboard and the button goes back to **Sync** within about 20 seconds; a number you type in the dashboard shows as synced.
 - The extension must be installed, with its token, in the browser where AliExpress is open.
   Settings and the arrow's memory are kept per browser.
 - The token only lets the extension list your stores and unshipped orders (without buyer
