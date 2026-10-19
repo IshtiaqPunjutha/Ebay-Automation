@@ -1036,6 +1036,83 @@ a.list-row:hover,
   box-shadow: var(--shadow-xs);
 }
 
+/* Modal dialog (extension token) */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 460px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dialog-title svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.dialog-field {
+  margin: 10px 0;
+}
+
+.dialog-field-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.dialog-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.dialog-field-row code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 /* AliExpress order numbers on an order row */
 .ali-order-cell {
   display: flex;
@@ -1431,6 +1508,33 @@ a.list-row:hover,
 
 .sheet thead th.sheet-actions {
   border-right: none;
+}
+
+.sheet .sheet-image {
+  width: 56px;
+  padding: 4px 6px;
+  background: var(--surface-2);
+  text-align: center;
+}
+
+.sheet thead th.sheet-image {
+  text-align: center;
+}
+
+.sheet-thumb {
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  object-fit: cover;
+}
+
+.sheet-thumb-empty {
+  border-style: dashed;
+  background: transparent;
 }
 
 .sheet-cell {

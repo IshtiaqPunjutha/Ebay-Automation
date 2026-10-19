@@ -108,7 +108,7 @@ function buildColumns(aliColumns) {
 }
 
 function newRow(values = {}) {
-  return { id: crypto.randomUUID(), itemId: "", title: "", ebayLink: "", aliLinks: [], aliLink: "", notes: "", ...values };
+  return { id: crypto.randomUUID(), itemId: "", title: "", imageUrl: "", ebayLink: "", aliLinks: [], aliLink: "", notes: "", ...values };
 }
 
 function padRows(rows, minimum = MIN_ROWS) {
@@ -462,10 +462,11 @@ export default function SheetMappingPage() {
           </div>
 
           <div className="panel sheet-wrap">
-            <table className="sheet" ref={tableRef} style={{ minWidth: `${100 + columns.length * 230}px` }}>
+            <table className="sheet" ref={tableRef} style={{ minWidth: `${160 + columns.length * 230}px` }}>
               <thead>
                 <tr>
                   <th className="sheet-index">#</th>
+                  <th className="sheet-image">Image</th>
                   {columns.map((col) => (
                     <th key={col.id}>{col.label}</th>
                   ))}
@@ -475,7 +476,7 @@ export default function SheetMappingPage() {
               <tbody>
                 {isFiltering && visibleRows.length === 0 && (
                   <tr>
-                    <td colSpan={columns.length + 2} style={{ padding: "32px", textAlign: "center", color: "var(--text-secondary)" }}>
+                    <td colSpan={columns.length + 3} style={{ padding: "32px", textAlign: "center", color: "var(--text-secondary)" }}>
                       No rows match.
                     </td>
                   </tr>
@@ -483,6 +484,13 @@ export default function SheetMappingPage() {
                 {visibleRows.map(({ row, index: rowIndex }, visibleIndex) => (
                   <tr key={row.id}>
                     <td className="sheet-index">{rowIndex + 1}</td>
+                    <td className="sheet-image">
+                      {row.imageUrl ? (
+                        <img src={row.imageUrl} alt={row.title || "Product"} loading="lazy" className="sheet-thumb" />
+                      ) : (
+                        <div className="sheet-thumb sheet-thumb-empty" />
+                      )}
+                    </td>
                     {columns.map((col, colIndex) => {
                       const value = col.get(row);
                       return (

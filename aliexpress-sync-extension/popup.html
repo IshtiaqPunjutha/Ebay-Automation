@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AliExpress Sync</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { width: 340px; margin: 0; padding: 14px; font: 13px/1.4 -apple-system, "Segoe UI", Arial, sans-serif; color: #18181b; background: #fff; }
+      h1 { margin: 0 0 2px; font-size: 15px; }
+      h2 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #71717a; }
+      p { margin: 0 0 8px; color: #52525b; }
+      label { display: block; margin-top: 8px; font-size: 12px; color: #52525b; }
+      input { width: 100%; margin-top: 3px; padding: 7px 9px; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 13px; }
+      .row { display: flex; gap: 8px; margin-top: 10px; }
+      button { padding: 7px 12px; border: 1px solid #d4d4d8; border-radius: 8px; background: #fff; font-size: 13px; cursor: pointer; }
+      button.primary { background: #2a78d6; border-color: #2a78d6; color: #fff; font-weight: 600; }
+      #msg { margin-top: 8px; min-height: 18px; font-size: 12px; }
+      .ok { color: #0a860a; }
+      .err { color: #d03b3b; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 12px; }
+      li code { font-family: ui-monospace, Consolas, monospace; }
+      li button { padding: 2px 8px; font-size: 12px; }
+      .muted { color: #71717a; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>AliExpress Sync</h1>
+    <p>Connect this extension to your order dashboard.</p>
+
+    <label>Dashboard address
+      <input id="url" placeholder="https://your-dashboard.vercel.app" spellcheck="false" />
+    </label>
+    <label>Token
+      <input id="token" type="password" placeholder="oat_..." spellcheck="false" autocomplete="off" />
+    </label>
+    <div class="row">
+      <button id="save" class="primary">Save</button>
+      <button id="test">Test connection</button>
+    </div>
+    <div id="msg" role="status"></div>
+    <p class="muted">Get both from the dashboard: Account, then Browser extension.</p>
+
+    <h2>Waiting for an AliExpress order</h2>
+    <ul id="pending"></ul>
+    <p id="empty" class="muted">None. Open a product with the arrow button in the dashboard to add one.</p>
+
+    <script src="lib.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

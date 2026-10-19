@@ -10,6 +10,8 @@ export async function middleware(request) {
     pathname === "/privacy" ||
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/register") ||
+    // The browser extension authenticates with its own Bearer token, not the cookie.
+    pathname.startsWith("/api/ext/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon");
 

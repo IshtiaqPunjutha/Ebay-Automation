@@ -62,6 +62,8 @@ export async function PUT(request) {
         id: cleanCell(row?.id) || crypto.randomUUID(),
         itemId: cleanCell(row?.itemId),
         title: cleanCell(row?.title),
+        // Only eBay's own image host is accepted for the thumbnail.
+        imageUrl: /^https:\/\/i\.ebayimg\.com\//.test(cleanCell(row?.imageUrl)) ? cleanCell(row.imageUrl) : "",
         ebayLink: cleanCell(row?.ebayLink),
         // Each AliExpress column is one entry; `aliLink` (old single-link field) is the fallback.
         aliLinks: Array.isArray(row?.aliLinks)

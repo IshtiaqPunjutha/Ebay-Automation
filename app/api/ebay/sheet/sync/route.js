@@ -72,9 +72,10 @@ export async function POST(request) {
     let added = 0;
     for (const listing of listings) {
       if (known.has(listing.itemId)) {
-        // Fill in a title for rows that were pasted without one.
+        // Fill in the title and image for rows that were pasted or fetched without them.
         const existing = rows.find((row) => row.itemId === listing.itemId);
         if (existing && !existing.title) existing.title = listing.title;
+        if (existing && !existing.imageUrl && listing.imageUrl) existing.imageUrl = listing.imageUrl;
         continue;
       }
       if (rows.length >= MAX_ROWS) break;
@@ -82,6 +83,7 @@ export async function POST(request) {
         id: crypto.randomUUID(),
         itemId: listing.itemId,
         title: listing.title,
+        imageUrl: listing.imageUrl || "",
         ebayLink: listing.url,
         aliLinks: [],
         aliLink: "",

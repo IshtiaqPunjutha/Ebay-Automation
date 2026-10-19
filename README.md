@@ -98,3 +98,10 @@ npx vercel deploy --prod
   eBay link with its AliExpress link (plus notes). It autosaves to Vercel KV
   through `/api/ebay/sheet` and accepts pasted rows from Excel or Google Sheets.
   The sheet is kept if the store is disconnected.
+
+## Browser extension (AliExpress Sync)
+
+`aliexpress-sync-extension/` is a Chrome extension that sends AliExpress order numbers to the
+matching eBay order. Create its token in the dashboard under **Account, then Browser extension**,
+and see `aliexpress-sync-extension/README.md` for install and use. It talks to `/api/ext/*`, which
+accepts that token (a hash of it is stored in KV) instead of the login cookie.

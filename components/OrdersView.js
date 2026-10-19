@@ -175,9 +175,22 @@ function TrackingCell({ shipments }) {
 
 // Opens the product's AliExpress page. The first link (the column next to the
 // eBay link in the sheet) is the main one; extra links sit behind a "+N" menu.
-function AliExpressOpen({ links }) {
+function AliExpressOpen({ links, orderId, storeId }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+
+  // The AliExpress Sync extension reads these two parameters to learn which
+  // eBay order this product is being bought for. AliExpress ignores them.
+  function tagged(link) {
+    try {
+      const url = new URL(link);
+      if (orderId) url.searchParams.set("ebayOrder", orderId);
+      if (storeId) url.searchParams.set("ebayStore", storeId);
+      return url.toString();
+    } catch (e) {
+      return link;
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -200,7 +213,7 @@ function AliExpressOpen({ links }) {
     <span className="ali-open-wrap" ref={ref}>
       <a
         className="icon-btn ali-open"
-        href={links[0]}
+        href={tagged(links[0])}
         target="_blank"
         rel="noopener noreferrer"
         title="Open on AliExpress"
@@ -222,7 +235,7 @@ function AliExpressOpen({ links }) {
           {open && (
             <div className="ali-menu" role="menu">
               {links.map((link, i) => (
-                <a key={link + i} href={link} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => setOpen(false)}>
+                <a key={link + i} href={tagged(link)} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => setOpen(false)}>
                   <ArrowUpRight strokeWidth={2} />
                   AliExpress link {i + 1}
                 </a>
@@ -901,7 +914,11 @@ export default function OrdersView({ status = "new" }) {
                             <td>{idx === 0 && <StatusBadge status={order.fulfillmentStatus} />}</td>
                             <td>
                               <div className="row-actions">
-                                <AliExpressOpen links={li.legacyItemId ? aliLinks[li.legacyItemId] : undefined} />
+                                <AliExpressOpen
+                                  links={li.legacyItemId ? aliLinks[li.legacyItemId] : undefined}
+                                  orderId={order.orderId}
+                                  storeId={storeId}
+                                />
                                 {li.imageUrl ? (
                                   <button
                                     type="button"
