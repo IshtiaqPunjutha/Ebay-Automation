@@ -126,20 +126,31 @@
     const menu = el(
       "div",
       {},
-      `position:fixed;left:${Math.max(8, Math.min(rect.left, innerWidth - 270))}px;top:${rect.bottom + 6}px;width:260px;z-index:2147483647;background:#fff;color:#18181b;border:1px solid #d4d4d8;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:13px Arial,sans-serif;overflow:hidden;`
+      `position:fixed;left:${Math.max(8, Math.min(rect.left, innerWidth - 340))}px;top:${Math.min(rect.bottom + 6, innerHeight - 120)}px;width:330px;max-height:min(60vh,420px);overflow:auto;z-index:2147483647;background:#fff;color:#18181b;border:1px solid #d4d4d8;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:13px Arial,sans-serif;`
     );
-    menu.appendChild(el("div", { textContent: "Which eBay order is this for?" }, "padding:8px 10px;font-weight:600;border-bottom:1px solid #eee;"));
+    menu.appendChild(
+      el(
+        "div",
+        { textContent: `Which eBay order is this for? (${choices.length})` },
+        "position:sticky;top:0;padding:8px 10px;font-weight:600;border-bottom:1px solid #eee;background:#fff;"
+      )
+    );
     for (const choice of choices) {
+      const entry = choice.entry;
       const row = el(
         "button",
-        { type: "button", textContent: `eBay ${choice.entry.orderId}${choice.hint ? ` (${choice.hint})` : ""}` },
-        "display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:#fff;color:#18181b;font:13px Arial,sans-serif;cursor:pointer;"
+        { type: "button" },
+        "display:block;width:100%;text-align:left;padding:8px 10px;border:none;border-bottom:1px solid #f4f4f5;background:#fff;color:#18181b;font:13px Arial,sans-serif;cursor:pointer;"
       );
+      const head = [`eBay ${entry.orderId}`, entry.buyer, entry.source === "arrow" ? "opened from arrow" : ""].filter(Boolean).join(" · ");
+      row.appendChild(el("div", { textContent: head }, "font-weight:600;"));
+      const detail = [entry.title ? entry.title.slice(0, 60) : "", entry.storeLabel].filter(Boolean).join("  |  ");
+      if (detail) row.appendChild(el("div", { textContent: detail }, "color:#71717a;font-size:12px;margin-top:2px;"));
       row.addEventListener("mouseenter", () => (row.style.background = "#f4f4f5"));
       row.addEventListener("mouseleave", () => (row.style.background = "#fff"));
       row.addEventListener("click", () => {
         closeMenu();
-        onPick(choice.entry);
+        onPick(entry);
       });
       menu.appendChild(row);
     }
@@ -164,22 +175,41 @@
 
   async function onClick(button, id, node) {
     if (state.synced[id]) return;
+    button.textContent = "Loading…";
+    button.disabled = true;
     await refreshState();
     if (!state.configured) {
+      paint(button, id);
+      button.disabled = false;
       return toast("Open the extension (puzzle icon, AliExpress Sync) and enter your dashboard address and token first.", true);
     }
-    if (state.pending.length === 0) {
-      return toast("Open this product from the dashboard's AliExpress arrow first, so the extension knows which eBay order it is for.", true);
+
+    // Two sources of "which eBay order is this for": the ones opened with the dashboard's
+    // arrow (remembered in this browser) and the orders the dashboard says still need a number.
+    const arrow = state.pending.map((p) => ({ ...p, source: "arrow" }));
+    const fromDashboard = await send({ type: "GET_CANDIDATES" });
+    paint(button, id);
+    button.disabled = false;
+
+    const choices = lib.mergeChoices(arrow, fromDashboard?.ok ? fromDashboard.candidates : []);
+    if (choices.length === 0) {
+      return toast(
+        fromDashboard?.ok
+          ? "No eBay orders are waiting for an AliExpress number."
+          : fromDashboard?.error || "Could not load your eBay orders from the dashboard.",
+        !fromDashboard?.ok
+      );
     }
-    const itemIds = itemIdsNear(node);
-    const pick = lib.pickPending(state.pending, itemIds);
-    // Sure enough to sync straight away: matched by product, or only one order is waiting.
-    if (pick.byProduct || state.pending.length === 1) return sync(button, id, node, pick.entry);
-    const newest = pick.entry;
-    const choices = [...state.pending]
-      .sort((a, b) => b.addedAt - a.addedAt)
-      .map((entry) => ({ entry, hint: entry === newest ? "newest" : "" }));
-    chooseOrder(button, choices, (entry) => sync(button, id, node, entry));
+    if (fromDashboard?.ok && fromDashboard.errors?.length) {
+      toast(`Some stores could not be loaded: ${fromDashboard.errors.join("; ")}`, true);
+    }
+
+    // Sure enough to sync straight away: the product in this AliExpress order is the one
+    // linked to that eBay order. Otherwise ask, with the arrow's orders first, then newest.
+    const matched = lib.matchByProduct(choices, itemIdsNear(node));
+    if (matched) return sync(button, id, node, matched);
+    const ordered = [...choices].sort((a, b) => (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
+    chooseOrder(button, ordered.map((entry) => ({ entry })), (entry) => sync(button, id, entry && node, entry));
   }
 
   function addButtons() {

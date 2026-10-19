@@ -35,15 +35,45 @@
     return match ? match[1] : "";
   }
 
+  // An eBay order can be matched to an AliExpress order by product: either the product
+  // it was opened with (aliItemId, from the dashboard arrow) or the products linked to
+  // its items in the sheet (aliItemIds, from the dashboard's order list).
+  function matchesProduct(entry, wanted) {
+    if (entry.aliItemId && wanted.has(entry.aliItemId)) return true;
+    return (entry.aliItemIds || []).some((id) => wanted.has(id));
+  }
+
+  // The eBay order whose product appears in the AliExpress order, or null.
+  // When several match, the ones opened with the arrow come first, then the newest.
+  function matchByProduct(entries, itemIds) {
+    const wanted = new Set(itemIds || []);
+    if (wanted.size === 0) return null;
+    const matches = (entries || []).filter((e) => matchesProduct(e, wanted));
+    if (matches.length === 0) return null;
+    return [...matches].sort((a, b) => (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt)[0];
+  }
+
   // Which waiting eBay order does an AliExpress order most likely belong to?
   // The one whose product id appears in the AliExpress order; otherwise the newest.
   function pickPending(pending, itemIds) {
     if (!pending || pending.length === 0) return null;
-    const wanted = new Set(itemIds || []);
-    const matched = pending.find((p) => p.aliItemId && wanted.has(p.aliItemId));
+    const matched = matchByProduct(pending, itemIds);
     if (matched) return { entry: matched, byProduct: true };
     const newest = [...pending].sort((a, b) => b.addedAt - a.addedAt)[0];
     return { entry: newest, byProduct: false };
+  }
+
+  // Merge eBay orders opened with the arrow and orders listed by the dashboard into one
+  // list without repeats; the arrow entry wins but borrows the dashboard's details.
+  function mergeChoices(arrowEntries, dashboardEntries) {
+    const byKey = new Map();
+    for (const e of dashboardEntries || []) byKey.set(`${e.storeId}|${e.orderId}`, { ...e, source: "dashboard" });
+    for (const e of arrowEntries || []) {
+      const key = `${e.storeId}|${e.orderId}`;
+      const known = byKey.get(key) || {};
+      byKey.set(key, { ...known, ...e, aliItemIds: known.aliItemIds || [], source: "arrow" });
+    }
+    return [...byKey.values()];
   }
 
   // "https://my-app.vercel.app/some/page" -> "https://my-app.vercel.app"
@@ -57,7 +87,7 @@
     }
   }
 
-  const api = { orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, pickPending, originOf };
+  const api = { orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, matchByProduct, pickPending, mergeChoices, originOf };
   root.AliSyncLib = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -401,16 +401,14 @@ export default function SheetMappingPage() {
         </p>
       )}
 
-      <div className="stat-grid" style={{ marginBottom: 16 }}>
+      <div className="stat-grid compact">
         <div className="stat-card">
-          <div className="stat-label">Rows</div>
+          <div className="stat-label" title="Rows with something in them">Rows</div>
           <div className="stat-value">{loading ? "–" : filled}</div>
-          <div className="stat-hint">Rows with something in them</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Fully mapped</div>
+          <div className="stat-label" title="Have an eBay link and at least one AliExpress link">Fully mapped</div>
           <div className="stat-value">{loading ? "–" : mapped}</div>
-          <div className="stat-hint">Have an eBay link and at least one AliExpress link</div>
         </div>
       </div>
 
@@ -477,6 +475,10 @@ export default function SheetMappingPage() {
                 <Minus strokeWidth={2.5} />
               </button>
             </div>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={addRows} title="Add 10 empty rows at the bottom">
+              <Plus strokeWidth={2.5} />
+              Add {ADD_ROWS} rows
+            </button>
             <span className="table-meta">
               {isFiltering ? `${visibleRows.length} of ${filled} rows` : `${filled} rows`}
             </span>
@@ -559,13 +561,6 @@ export default function SheetMappingPage() {
                 ))}
               </tbody>
             </table>
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <button type="button" className="btn btn-secondary" onClick={addRows}>
-              <Plus strokeWidth={2.5} />
-              Add {ADD_ROWS} rows
-            </button>
           </div>
         </>
       )}

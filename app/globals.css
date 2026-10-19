@@ -591,6 +591,24 @@ button.nav-link {
   margin-bottom: 24px;
 }
 
+/* Compact variant: small tiles in a row (sheet page). */
+.stat-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 160px));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-grid.compact .stat-card {
+  padding: 8px 12px;
+  gap: 2px;
+  border-radius: var(--radius-md);
+}
+
+.stat-grid.compact .stat-value {
+  font-size: 18px;
+  line-height: 22px;
+}
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1471,7 +1489,7 @@ a.list-row:hover,
 
 .sheet-wrap {
   overflow: auto;
-  max-height: calc(100vh - 360px);
+  max-height: calc(100vh - 300px);
   min-height: 280px;
 }
 

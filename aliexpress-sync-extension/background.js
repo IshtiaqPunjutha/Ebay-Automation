@@ -49,8 +49,53 @@ async function api(path, options = {}) {
   }
 }
 
+// eBay orders that still need an AliExpress number, asked of the dashboard for every
+// connected store. Kept for a short while so pressing Sync on several orders in a row
+// does not ask eBay each time.
+let candidateCache = null;
+const CANDIDATE_TTL_MS = 45 * 1000;
+
+async function getCandidates() {
+  if (candidateCache && Date.now() - candidateCache.at < CANDIDATE_TTL_MS) return candidateCache.result;
+
+  const stores = await api("/api/ext/stores");
+  if (!stores.ok) return stores;
+
+  const lists = await Promise.all(
+    (stores.data.stores || []).map(async (store) => ({
+      store,
+      res: await api(`/api/ext/orders?store=${encodeURIComponent(store.storeId)}`),
+    }))
+  );
+
+  const candidates = [];
+  const errors = [];
+  for (const { store, res } of lists) {
+    if (!res.ok) {
+      errors.push(`${store.label}: ${res.error}`);
+      continue;
+    }
+    for (const order of res.data.orders || []) {
+      candidates.push({
+        storeId: store.storeId,
+        storeLabel: store.label,
+        orderId: order.orderId,
+        buyer: order.buyer || "",
+        title: order.title || "",
+        aliItemIds: order.aliItemIds || [],
+        addedAt: Date.parse(order.orderDate) || 0,
+      });
+    }
+  }
+  const result = { ok: true, candidates, errors };
+  candidateCache = { at: Date.now(), result };
+  return result;
+}
+
 async function handle(message) {
   switch (message?.type) {
+    case "GET_CANDIDATES":
+      return await getCandidates();
     case "ADD_PENDING":
       await addPending({
         orderId: String(message.orderId),
@@ -90,6 +135,7 @@ async function handle(message) {
         const next = { ...(synced || {}), [message.aliOrderId]: { orderId: message.orderId, storeId: message.storeId, at: Date.now() } };
         await chrome.storage.local.set({ synced: next });
         await removePending(message.orderId, message.storeId);
+        candidateCache = null; // the dashboard's list has changed
       }
       return result;
     }
