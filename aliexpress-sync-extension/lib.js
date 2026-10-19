@@ -43,6 +43,26 @@
     return (entry.aliItemIds || []).some((id) => wanted.has(id));
   }
 
+  const normalize = (text) => String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const wordsOf = (text) => [...new Set(String(text || "").toLowerCase().match(/[a-z0-9]{4,}/g) || [])];
+
+  // How well an eBay order's items fit the text of an AliExpress order card: a point for every
+  // title word they share, and three for every chosen size/colour that appears in the card
+  // ("Black, 1m" fits an eBay order for "Color: Black, Cable Length: 1 m").
+  function scoreAgainstCard(entry, cardText) {
+    const haystack = normalize(cardText);
+    const cardWords = new Set(wordsOf(cardText));
+    let score = 0;
+    for (const item of entry.items || []) {
+      for (const value of item.variantValues || []) {
+        const needle = normalize(value);
+        if (needle.length >= 2 && haystack.includes(needle)) score += 3;
+      }
+      for (const word of wordsOf(item.title)) if (cardWords.has(word)) score += 1;
+    }
+    return score;
+  }
+
   // Every eBay order whose product appears in the AliExpress order: the ones opened with the
   // arrow first, then the newest.
   function matchesByProduct(entries, itemIds) {
@@ -92,7 +112,7 @@
     }
   }
 
-  const api = { orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };
+  const api = { orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, scoreAgainstCard, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };
   root.AliSyncLib = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

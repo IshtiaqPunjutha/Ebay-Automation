@@ -82,6 +82,7 @@ async function getCandidates() {
         orderId: order.orderId,
         buyer: order.buyer || "",
         title: order.title || "",
+        items: order.items || [],
         aliItemIds: order.aliItemIds || [],
         addedAt: Date.parse(order.orderDate) || 0,
       });

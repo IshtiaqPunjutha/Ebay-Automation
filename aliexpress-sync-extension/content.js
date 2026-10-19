@@ -149,20 +149,24 @@
     return found;
   }
 
-  // Product ids of the order card that this number belongs to.
-  function itemIdsNear(node) {
+  // The order card that this number belongs to: the product ids it links to and its text
+  // (product name, "Black, 1m" and so on), used to work out which eBay order it is for.
+  function cardInfo(node) {
     const found = new Set();
+    let text = "";
     let box = node;
     for (let depth = 0; box && depth < 12; depth += 1, box = box.parentElement) {
+      const boxText = box.innerText || "";
       // Once the container holds more than one order number it is the whole list.
-      if (lib.orderIdsFromText(box.innerText || "").length > 1) break;
+      if (lib.orderIdsFromText(boxText).length > 1) break;
       const links = [...box.querySelectorAll("a[href]")].map((a) => lib.itemIdFromUrl(a.href)).filter(Boolean);
       if (links.length) {
         links.forEach((id) => found.add(id));
+        text = boxText;
         break;
       }
     }
-    return [...found];
+    return { itemIds: [...found], text };
   }
 
   function paint(button, id) {
@@ -186,7 +190,7 @@
     const menu = el(
       "div",
       {},
-      `position:fixed;left:${Math.max(8, Math.min(rect.left, innerWidth - 340))}px;top:${Math.min(rect.bottom + 6, innerHeight - 120)}px;width:330px;max-height:min(60vh,420px);overflow:auto;z-index:2147483647;background:#fff;color:#18181b;border:1px solid #d4d4d8;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:13px Arial,sans-serif;`
+      `position:fixed;left:${Math.max(8, Math.min(rect.left, innerWidth - 340))}px;top:${Math.max(8, Math.min(rect.bottom + 6, innerHeight - Math.min(innerHeight * 0.6, 420) - 8))}px;width:330px;max-height:min(60vh,420px);overflow:auto;z-index:2147483647;background:#fff;color:#18181b;border:1px solid #d4d4d8;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:13px Arial,sans-serif;`
     );
     // Sticky header with a search box: type part of an order number, buyer name or product to narrow the list.
     const header = el("div", {}, "position:sticky;top:0;padding:8px 10px;border-bottom:1px solid #eee;background:#fff;z-index:1;");
@@ -207,18 +211,32 @@
         { type: "button" },
         "display:block;width:100%;text-align:left;padding:8px 10px;border:none;border-bottom:1px solid #f4f4f5;background:#fff;color:#18181b;font:13px Arial,sans-serif;cursor:pointer;"
       );
-      rows.push({ row, entry, haystack: [entry.orderId, entry.buyer, entry.title, entry.storeLabel].join(" ").toLowerCase() });
+      rows.push({
+        row,
+        entry,
+        haystack: [entry.orderId, entry.buyer, entry.title, entry.storeLabel, ...(entry.items || []).map((i) => i.variantText)]
+          .join(" ")
+          .toLowerCase(),
+      });
       const head = [
         `eBay ${entry.orderId}`,
         entry.buyer,
+        entry.bestGuess ? "best guess" : "",
         entry.sameProduct ? "same product" : "",
         entry.source === "arrow" ? "opened from arrow" : "",
       ]
         .filter(Boolean)
         .join(" · ");
-      row.appendChild(el("div", { textContent: head }, "font-weight:600;"));
+      row.appendChild(el("div", { textContent: head }, `font-weight:600;${entry.bestGuess ? "color:#188038;" : ""}`));
       const detail = [entry.title ? entry.title.slice(0, 60) : "", entry.storeLabel].filter(Boolean).join("  |  ");
       if (detail) row.appendChild(el("div", { textContent: detail }, "color:#71717a;font-size:12px;margin-top:2px;"));
+      // What exactly was bought (size, colour, how many): often the only difference between two orders.
+      const bought = (entry.items || [])
+        .slice(0, 3)
+        .map((item) => [item.variantText, item.quantity > 1 ? `x${item.quantity}` : ""].filter(Boolean).join(" "))
+        .filter(Boolean)
+        .join("  /  ");
+      if (bought) row.appendChild(el("div", { textContent: bought }, "color:#18181b;font-size:12px;margin-top:2px;font-style:italic;"));
       row.addEventListener("mouseenter", () => (row.style.background = "#f4f4f5"));
       row.addEventListener("mouseleave", () => (row.style.background = "#fff"));
       row.addEventListener("click", () => {
@@ -312,13 +330,24 @@
 
     // Sync straight away only when exactly one eBay order has this product. With two or more
     // (the same product sold twice) it cannot know which one, so it asks, same-product orders first.
-    const matches = lib.matchesByProduct(choices, itemIdsNear(node));
+    const card = cardInfo(node);
+    const matches = lib.matchesByProduct(choices, card.itemIds);
     if (matches.length === 1) return sync(button, id, node, matches[0]);
+
+    // Rank by how well each order fits the card (title words, chosen size/colour), then by
+    // arrow / newest. Same-product orders always come first.
+    const rank = (list) =>
+      list
+        .map((entry) => ({ ...entry, score: lib.scoreAgainstCard(entry, card.text) }))
+        .sort((a, b) => b.score - a.score || (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
     const matchedKeys = new Set(matches.map((m) => `${m.storeId}|${m.orderId}`));
-    const rest = choices
-      .filter((c) => !matchedKeys.has(`${c.storeId}|${c.orderId}`))
-      .sort((a, b) => (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
-    const ordered = [...matches.map((m) => ({ ...m, sameProduct: true })), ...rest];
+    const same = rank(matches).map((m) => ({ ...m, sameProduct: true }));
+    const rest = rank(choices.filter((c) => !matchedKeys.has(`${c.storeId}|${c.orderId}`)));
+    const ordered = [...same, ...rest];
+
+    // Point out a clear best guess (it still needs a click): it must fit well and clearly better than the next.
+    const [first, second] = ordered;
+    if (first && first.score >= 3 && (!second || first.score >= second.score + 2)) first.bestGuess = true;
     chooseOrder(button, ordered.map((entry) => ({ entry })), (entry) => sync(button, id, node, entry));
   }
 
