@@ -37,7 +37,7 @@ export async function GET(request) {
   }
 }
 
-// PUT /api/ebay/sheet?store=<storeId>   body: { rows: [{ id, ebayLink, aliLink, notes }] }
+// PUT /api/ebay/sheet?store=<storeId>   body: { rows: [{ id, itemId, title, ebayLink, aliLink, notes }] }
 export async function PUT(request) {
   const storeId = new URL(request.url).searchParams.get("store");
   const auth = await authorize(request, storeId);
@@ -56,12 +56,14 @@ export async function PUT(request) {
   const rows = body.rows
     .map((row) => ({
       id: cleanCell(row?.id) || crypto.randomUUID(),
+      itemId: cleanCell(row?.itemId),
+      title: cleanCell(row?.title),
       ebayLink: cleanCell(row?.ebayLink),
       aliLink: cleanCell(row?.aliLink),
       notes: cleanCell(row?.notes),
     }))
     // Fully empty rows are not worth storing.
-    .filter((row) => row.ebayLink || row.aliLink || row.notes);
+    .filter((row) => row.ebayLink || row.aliLink || row.notes || row.title);
 
   try {
     const saved = await saveStoreSheet(auth.userId, storeId, rows);

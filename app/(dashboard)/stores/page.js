@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Store, CircleAlert } from "lucide-react";
 
 export default function StoresPage() {
+  const router = useRouter();
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -91,7 +93,20 @@ export default function StoresPage() {
       {!loading && stores.length > 0 && (
         <div className="panel">
           {stores.map((s) => (
-            <div key={s.storeId} className="list-row">
+            <div
+              key={s.storeId}
+              className="list-row clickable"
+              role="link"
+              tabIndex={0}
+              aria-label={`Open ${s.label}`}
+              onClick={() => router.push(`/stores/${s.storeId}`)}
+              onKeyDown={(e) => {
+                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  router.push(`/stores/${s.storeId}`);
+                }
+              }}
+            >
               <div className="avatar">{(s.label || "?").slice(0, 2)}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="list-row-title">{s.label}</div>
@@ -99,7 +114,7 @@ export default function StoresPage() {
                   Connected {new Date(s.connectedAt).toLocaleDateString()}
                 </div>
               </div>
-              <div className="list-row-actions">
+              <div className="list-row-actions" onClick={(e) => e.stopPropagation()}>
                 <Link href={`/stores/${s.storeId}`} className="btn btn-secondary btn-sm">
                   View orders
                 </Link>

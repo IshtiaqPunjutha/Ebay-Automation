@@ -103,6 +103,7 @@ export default function StoreOrdersPage() {
   const [imageSearchStatus, setImageSearchStatus] = useState("");
   const [imageSearchPending, setImageSearchPending] = useState(false);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   async function loadStoreLabel() {
     const res = await fetch("/api/ebay/stores");
@@ -197,13 +198,17 @@ export default function StoreOrdersPage() {
   }, [storeId]);
 
   const needle = query.trim().toLowerCase();
+  const statusOrders =
+    statusFilter === "all"
+      ? orders
+      : orders.filter((order) => (statusFilter === "in_progress") === (order.fulfillmentStatus === "IN_PROGRESS"));
   const visibleOrders = needle
-    ? orders.filter((order) =>
+    ? statusOrders.filter((order) =>
         [order.orderId, order.buyerUsername, order.shipTo?.fullName, ...order.lineItems.flatMap((li) => [li.title, li.sku])]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(needle))
       )
-    : orders;
+    : statusOrders;
   const totalItems = visibleOrders.reduce((sum, order) => sum + (order.itemCount || 0), 0);
   const totalValue = sumByCurrency(visibleOrders.map((o) => [o.currency, o.orderTotal]));
   const earnedOrders = visibleOrders.filter((o) => o.earnings);
@@ -306,6 +311,23 @@ export default function StoreOrdersPage() {
                 onChange={(e) => setQuery(e.target.value)}
                 aria-label="Search orders"
               />
+            </div>
+            <div className="segmented" role="group" aria-label="Filter by status">
+              {[
+                ["all", "All"],
+                ["to_ship", "To ship"],
+                ["in_progress", "In progress"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={statusFilter === key ? "active" : ""}
+                  aria-pressed={statusFilter === key}
+                  onClick={() => setStatusFilter(key)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
             <span className="table-meta">
               {visibleOrders.length === orders.length
