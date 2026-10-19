@@ -30,8 +30,6 @@
   }
 
   // ---- 2. Panel on order pages ------------------------------------------------
-  const isOrderPage = /order/i.test(location.pathname) || lib.orderIdsFromUrl(location.search).length > 0;
-
   let host = null;
   let root = null;
 
@@ -92,6 +90,9 @@
       if (!node.nodeValue.includes(orderId)) continue;
       let el = node.parentElement;
       for (let depth = 0; el && depth < 10; depth += 1, el = el.parentElement) {
+        // Once the container holds more than one order number it is the whole list,
+        // not this order's card; its products would belong to other orders too.
+        if (lib.orderIdsFromText(el.innerText || "").length > 1) break;
         const links = [...el.querySelectorAll("a[href]")].map((a) => lib.itemIdFromUrl(a.href)).filter(Boolean);
         if (links.length) {
           links.forEach((id) => found.add(id));
@@ -141,7 +142,7 @@
 
     let html = "";
     if (state.items.length === 0) {
-      html += `<div class="muted">No AliExpress order numbers found on this page yet.</div>`;
+      html += `<div class="muted">No AliExpress "Ref. Number" found on this page yet. Scroll the orders into view, or add the number below.</div>`;
     }
     for (const item of state.items) {
       const done = state.synced[item.id];
@@ -216,21 +217,39 @@
     else document.addEventListener("DOMContentLoaded", show, { once: true });
   }
 
-  if (!isOrderPage) return;
+  // AliExpress is a single-page app: moving from the home page to "My orders" does not
+  // reload the page, so the address is checked again each time instead of only once.
+  const onOrderPage = () => /order/i.test(location.pathname) || lib.orderIdsFromUrl(location.search).length > 0;
+
+  function hidePanel() {
+    if (host && host.isConnected) host.remove();
+  }
 
   let timer = null;
+  let lastHref = "";
   function schedule() {
     clearTimeout(timer);
     timer = setTimeout(async () => {
+      if (!onOrderPage()) return hidePanel();
       await refreshState();
       scan();
     }, 1200);
   }
 
   function start() {
+    lastHref = location.href;
     schedule();
-    // Order pages load their content late and change without a reload.
-    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+    // Order lists load their content late; rescan when the page changes.
+    new MutationObserver(() => {
+      if (onOrderPage()) schedule();
+    }).observe(document.body, { childList: true, subtree: true });
+    // Notice in-app navigation (no reload) to or from an order page.
+    setInterval(() => {
+      if (location.href !== lastHref) {
+        lastHref = location.href;
+        schedule();
+      }
+    }, 800);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });

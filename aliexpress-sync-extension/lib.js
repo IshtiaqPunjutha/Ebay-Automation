@@ -1,8 +1,10 @@
 // Shared helpers for the content script, popup and background worker.
 // Plain functions with no browser APIs, so they can also be unit-tested in Node.
 (function (root) {
-  // "Order ID: 8123456789012345", "Order No. 8123...", "Order number #8123...", "Order: 8123..."
-  const ORDER_LABEL = /(?:order\s*(?:id|no\.?|number|#)|order)\s*[:：#]?\s*(\d{12,20})/gi;
+  // AliExpress labels the number "Ref. Number: 3077062172300812" on the order list.
+  // Also accepted: "Order ID: ...", "Order No. ...", "Order number #...", "Order: ...", "Reference ...".
+  const ORDER_LABEL =
+    /(?:ref(?:erence)?\.?\s*(?:number|no\.?|id|#)?|order\s*(?:id|no\.?|number|#)|order)\s*[:：#]?\s*(\d{12,20})/gi;
 
   // AliExpress order numbers found in a block of page text, in order of appearance.
   function orderIdsFromText(text) {

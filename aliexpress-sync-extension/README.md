@@ -24,7 +24,7 @@ If a number is not detected, type it into the box at the bottom of the panel and
 
 ## Notes
 
-- The panel looks for text like "Order ID: 8123456789012345" and for `?orderId=` in the address.
+- The panel looks for the "Ref. Number: 3077062172300812" shown on each AliExpress order (also "Order ID" and `?orderId=` in the address).
   AliExpress changes its pages from time to time; if numbers stop being found, that detection
   (`lib.js`) is the place to adjust.
 - The token only lets the extension add AliExpress order numbers and list your store names.
