@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import ZoomThumb from "./ZoomThumb";
 import { ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
 
 // The numeric item id inside an eBay listing link (…/itm/123456789012).
@@ -293,8 +294,7 @@ function ProductImage({ imageUrl, title }) {
   if (failed) return <div className="thumb" title="eBay image could not be loaded" />;
 
   return (
-    <img
-      className="thumb"
+    <ZoomThumb
       src={src}
       alt={title}
       onError={() => {

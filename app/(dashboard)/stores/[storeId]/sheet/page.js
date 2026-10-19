@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import ZoomThumb from "@/components/ZoomThumb";
 import { Check, CircleAlert, Copy, Download, ExternalLink, Minus, Plus, Search, Trash2, LoaderCircle } from "lucide-react";
 
 // One click copies the cell's full value (the input may show it cut off).
@@ -509,7 +510,7 @@ export default function SheetMappingPage() {
                     <td className="sheet-index">{rowIndex + 1}</td>
                     <td className="sheet-image">
                       {row.imageUrl ? (
-                        <img src={row.imageUrl} alt={row.title || "Product"} loading="lazy" className="sheet-thumb" />
+                        <ZoomThumb src={row.imageUrl} alt={row.title || "Product"} className="sheet-thumb" />
                       ) : (
                         <div className="sheet-thumb sheet-thumb-empty" />
                       )}

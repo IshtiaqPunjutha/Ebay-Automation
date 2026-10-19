@@ -11,7 +11,44 @@
   const VERSION = chrome.runtime.getManifest?.().version || "";
   console.info(`[AliExpress Sync ${VERSION}] active on`, location.pathname);
 
-  const send = (message) => chrome.runtime.sendMessage(message).catch(() => ({ ok: false, error: "Extension unavailable" }));
+  // When the extension is reloaded or updated, scripts already running in open tabs lose their
+  // connection to it (chrome.runtime disappears). Detect that, stop quietly, and ask for a refresh
+  // instead of throwing errors on every scan.
+  const BTN_ATTR = "data-ebay-sync";
+  let dead = false;
+  let timer = null;
+  let poll = null;
+  let observer = null;
+  const alive = () => {
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch (e) {
+      return false;
+    }
+  };
+  function die() {
+    if (dead) return;
+    dead = true;
+    clearTimeout(timer);
+    clearInterval(poll);
+    observer?.disconnect();
+    document.querySelectorAll(`[${BTN_ATTR}]`).forEach((b) => b.remove());
+    toast("AliExpress Sync was updated or reloaded. Refresh this page (F5) to use it again.", true);
+  }
+
+  const send = async (message) => {
+    if (dead) return { ok: false, error: "Refresh this page: the extension was reloaded." };
+    if (!alive()) {
+      die();
+      return { ok: false, error: "Refresh this page: the extension was reloaded." };
+    }
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (e) {
+      if (!alive()) die();
+      return { ok: false, error: "Extension unavailable" };
+    }
+  };
 
   // ---- small helpers -----------------------------------------------------------
   function el(tag, props = {}, style = "") {
@@ -55,7 +92,6 @@
   }
 
   // ---- 2. "Sync" buttons next to each Ref. Number -----------------------------
-  const BTN_ATTR = "data-ebay-sync";
   const BTN_STYLE =
     "margin-left:10px;padding:2px 10px;border:none;border-radius:12px;background:#2a78d6;color:#fff;font:600 12px/18px Arial,sans-serif;cursor:pointer;vertical-align:middle;white-space:nowrap;";
 
@@ -244,12 +280,13 @@
 
   // AliExpress is a single-page app: moving to "My orders" does not reload the page, and the
   // list fills in late, so the page is rescanned when it changes and when the address changes.
-  let timer = null;
   let lastHref = "";
   function schedule() {
+    if (dead) return;
     clearTimeout(timer);
     timer = setTimeout(async () => {
       try {
+        if (!alive()) return die();
         if (!onOrderPage()) return removeButtons();
         await refreshState();
         addButtons();
@@ -262,10 +299,12 @@
   function start() {
     lastHref = location.href;
     schedule();
-    new MutationObserver(() => {
+    observer = new MutationObserver(() => {
       if (onOrderPage()) schedule();
-    }).observe(document.body, { childList: true, subtree: true });
-    setInterval(() => {
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    poll = setInterval(() => {
+      if (!alive()) return die();
       if (location.href !== lastHref) {
         lastHref = location.href;
         schedule();
