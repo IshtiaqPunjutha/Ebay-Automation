@@ -57,6 +57,79 @@ function agoLabel(days) {
   return `${days} days ago`;
 }
 
+// AliExpress order number(s) bought for an eBay order. Shown as chips (click to
+// copy, x to remove) with an inline box to add another; separate several
+// numbers with spaces or commas.
+function AliOrderCell({ ids, onSave, disabled }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [problem, setProblem] = useState("");
+
+  function submit() {
+    const entered = draft.split(/[\s,;]+/).filter(Boolean);
+    if (entered.length === 0) {
+      setAdding(false);
+      setProblem("");
+      return;
+    }
+    if (entered.some((v) => !/^[A-Za-z0-9-]{6,32}$/.test(v))) {
+      setProblem("Use the order number only (letters, digits, dashes).");
+      return;
+    }
+    onSave([...new Set([...ids, ...entered])]);
+    setDraft("");
+    setProblem("");
+    setAdding(false);
+  }
+
+  return (
+    <div className="ali-order-cell">
+      {ids.map((id) => (
+        <div key={id} className="ali-order-chip">
+          <span className="mono">{id}</span>
+          <CopyButton text={id} label="Copy AliExpress order number" />
+          <button
+            type="button"
+            className="chip-remove"
+            onClick={() => onSave(ids.filter((v) => v !== id))}
+            title="Remove this number"
+            aria-label={`Remove ${id}`}
+            disabled={disabled}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      {adding ? (
+        <div>
+          <input
+            className="input ali-order-input"
+            autoFocus
+            value={draft}
+            placeholder="AliExpress order no."
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+              if (e.key === "Escape") {
+                setAdding(false);
+                setDraft("");
+                setProblem("");
+              }
+            }}
+            onBlur={submit}
+            aria-label="AliExpress order number"
+          />
+          {problem && <div className="text-error" style={{ fontSize: 11, marginTop: 2 }}>{problem}</div>}
+        </div>
+      ) : (
+        <button type="button" className="ali-order-add" onClick={() => setAdding(true)} disabled={disabled}>
+          + {ids.length ? "Add" : "Add order no."}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Tracking number(s), carrier and shipped date of a dispatched order.
 // The link opens 17TRACK, which understands any carrier from the number alone.
 function TrackingCell({ shipments }) {
@@ -333,6 +406,49 @@ export default function OrdersView({ status = "new" }) {
     if (storeId) loadSheetLinks();
   }, [storeId]);
 
+  // eBay order id -> AliExpress order numbers entered for it.
+  const [orderRefs, setOrderRefs] = useState({});
+  const [savingRef, setSavingRef] = useState(false);
+
+  async function loadOrderRefs() {
+    try {
+      const res = await fetch(`/api/ebay/orderrefs?store=${encodeURIComponent(storeId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setOrderRefs(data.refs || {});
+    } catch (e) {
+      // Numbers just show as empty if they cannot be read.
+    }
+  }
+
+  useEffect(() => {
+    if (storeId) loadOrderRefs();
+  }, [storeId]);
+
+  async function saveOrderRef(orderId, aliOrderIds) {
+    const before = orderRefs;
+    // Show the change straight away; put it back if saving fails.
+    setOrderRefs((prev) => {
+      const next = { ...prev };
+      if (aliOrderIds.length) next[orderId] = { aliOrderIds, updatedAt: Date.now() };
+      else delete next[orderId];
+      return next;
+    });
+    setSavingRef(true);
+    try {
+      const res = await fetch(`/api/ebay/orderrefs?store=${encodeURIComponent(storeId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, aliOrderIds }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save the order number.");
+    } catch (err) {
+      setOrderRefs(before);
+      setError(err.message || "Could not save the order number.");
+    }
+    setSavingRef(false);
+  }
+
   async function loadStoreLabel() {
     const res = await fetch("/api/ebay/stores");
     const data = await res.json();
@@ -486,6 +602,7 @@ export default function OrdersView({ status = "new" }) {
           order.buyerUsername,
           order.shipTo?.fullName,
           ...(order.shipments || []).map((s) => s.trackingNumber),
+          ...(orderRefs[order.orderId]?.aliOrderIds || []),
           ...order.lineItems.flatMap((li) => [li.title, li.sku]),
         ]
           .filter(Boolean)
@@ -516,6 +633,7 @@ export default function OrdersView({ status = "new" }) {
           onClick={() => {
             loadOrders();
             loadSheetLinks();
+            loadOrderRefs();
           }}
           className="btn btn-secondary"
           disabled={loading}
@@ -671,6 +789,7 @@ export default function OrdersView({ status = "new" }) {
                     <th className="num">Total</th>
                     <th className="num">Earnings</th>
                     <th>Ship to</th>
+                    <th>AliExpress order</th>
                     {status === "dispatched" && <th>Tracking</th>}
                     <th>Status</th>
                     <th></th>
@@ -765,6 +884,15 @@ export default function OrdersView({ status = "new" }) {
                                 </>
                               )}
                             </td>
+                            <td style={{ minWidth: "190px" }}>
+                              {idx === 0 && (
+                                <AliOrderCell
+                                  ids={orderRefs[order.orderId]?.aliOrderIds || []}
+                                  onSave={(ids) => saveOrderRef(order.orderId, ids)}
+                                  disabled={savingRef}
+                                />
+                              )}
+                            </td>
                             {status === "dispatched" && (
                               <td style={{ minWidth: "190px" }}>
                                 {idx === 0 && <TrackingCell shipments={order.shipments} />}
@@ -811,7 +939,7 @@ export default function OrdersView({ status = "new" }) {
                           </tr>
                           {expandedProduct === rowKey && (
                             <tr>
-                              <td colSpan={status === "dispatched" ? 9 : 8}>
+                              <td colSpan={status === "dispatched" ? 10 : 9}>
                                 <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface-2)", padding: "12px" }}>
                                   <div style={{ color: "var(--text-secondary)", fontSize: "11px", marginBottom: "8px" }}>Fetched product data</div>
                                   <pre style={{ margin: 0, maxHeight: "320px", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-primary)", fontFamily: "var(--font-geist-mono)", fontSize: "11px", lineHeight: 1.55 }}>
