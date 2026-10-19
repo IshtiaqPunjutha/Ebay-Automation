@@ -2,7 +2,40 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { Check, CircleAlert, Download, ExternalLink, Minus, Plus, Search, Trash2, LoaderCircle } from "lucide-react";
+import { Check, CircleAlert, Copy, Download, ExternalLink, Minus, Plus, Search, Trash2, LoaderCircle } from "lucide-react";
+
+// One click copies the cell's full value (the input may show it cut off).
+function CopyCell({ value, label }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch (err) {
+      const area = document.createElement("textarea");
+      area.value = value;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const Icon = copied ? Check : Copy;
+  return (
+    <button
+      type="button"
+      className={`sheet-copy${copied ? " copied" : ""}`}
+      onClick={copy}
+      title={copied ? "Copied" : "Copy"}
+      aria-label={label}
+    >
+      <Icon strokeWidth={2} />
+    </button>
+  );
+}
 
 const FILTERS = [
   { key: "all", label: "All rows" },
@@ -477,6 +510,7 @@ export default function SheetMappingPage() {
                                 <ExternalLink strokeWidth={2} />
                               </a>
                             )}
+                            {value && <CopyCell value={value} label={`Copy ${col.label}, row ${rowIndex + 1}`} />}
                           </div>
                         </td>
                       );

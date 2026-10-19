@@ -1384,6 +1384,50 @@ a.list-row:hover,
   color: var(--accent);
 }
 
+/* Copy button: shown while the row is hovered or focused (always on touch screens). */
+.sheet-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.sheet tbody tr:hover .sheet-copy,
+.sheet-cell:focus-within .sheet-copy,
+.sheet-copy:focus-visible,
+.sheet-copy.copied {
+  opacity: 1;
+}
+
+.sheet-copy:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.sheet-copy.copied {
+  color: var(--success);
+}
+
+.sheet-copy svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (hover: none) {
+  .sheet-copy {
+    opacity: 1;
+  }
+}
+
 .sheet-open svg {
   width: 14px;
   height: 14px;
