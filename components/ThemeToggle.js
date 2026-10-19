@@ -4,25 +4,36 @@ import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 
 export default function ThemeToggle({ compact = false }) {
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
 
   useEffect(() => {
-    setTheme(localStorage.getItem("theme") || "dark");
+    setTheme(document.documentElement.getAttribute("data-theme") || "light");
   }, []);
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("theme", next);
+    try {
+      localStorage.setItem("theme", next);
+    } catch (e) {}
   }
 
   const Icon = theme === "dark" ? Sun : Moon;
+  const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+
+  if (compact) {
+    return (
+      <button onClick={toggle} className="icon-btn" title={label} aria-label={label}>
+        <Icon strokeWidth={2} />
+      </button>
+    );
+  }
 
   return (
-    <button onClick={toggle} className="btn btn-ghost" style={compact ? { width: "auto" } : undefined}>
+    <button onClick={toggle} className="btn btn-ghost">
       <Icon strokeWidth={2} />
-      {!compact && (theme === "dark" ? "Light mode" : "Dark mode")}
+      {theme === "dark" ? "Light mode" : "Dark mode"}
     </button>
   );
 }

@@ -1,18 +1,7 @@
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import Script from "next/script";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  weight: ["400", "500", "600", "700"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  weight: ["400", "500", "600"],
-});
 
 export const metadata = {
   title: "Order Automation Dashboard",
@@ -20,15 +9,16 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
-        {/* Applies the saved theme before first paint, so there's no
-            dark-then-light flash on reload. */}
+        {/* Applies the saved theme (or the OS preference) before first
+            paint, so there's no light-then-dark flash on reload. */}
         <Script id="theme-init" strategy="beforeInteractive">
           {`
             (function () {
               try {
-                var theme = localStorage.getItem('theme') || 'dark';
+                var theme = localStorage.getItem('theme');
+                if (!theme) theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
                 document.documentElement.setAttribute('data-theme', theme);
               } catch (e) {}
             })();

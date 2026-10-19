@@ -73,7 +73,7 @@ export default function LoginPage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontFamily: "var(--font-mono)",
+            fontFamily: "var(--font-geist-mono)",
             fontWeight: 600,
             fontSize: "12px",
             margin: "0 auto 18px auto",

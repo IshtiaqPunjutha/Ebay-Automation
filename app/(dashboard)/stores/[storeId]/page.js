@@ -3,45 +3,54 @@
 import { Fragment, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Braces, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, Braces, CircleAlert, Clock, Loader, PackageSearch, RefreshCw, Search } from "lucide-react";
 
 function ProductImage({ imageUrl, title }) {
   const proxyUrl = `/api/ebay/image-search?url=${encodeURIComponent(imageUrl)}`;
   const [src, setSrc] = useState(imageUrl);
   const [failed, setFailed] = useState(false);
 
-  if (failed) {
-    return (
-      <div
-        title="eBay image could not be loaded"
-        style={{
-          width: "34px",
-          height: "34px",
-          borderRadius: "6px",
-          border: "1px solid var(--border)",
-          background: "var(--surface-2)",
-        }}
-      />
-    );
-  }
+  if (failed) return <div className="thumb" title="eBay image could not be loaded" />;
 
   return (
     <img
+      className="thumb"
       src={src}
       alt={title}
       onError={() => {
         if (src !== proxyUrl) setSrc(proxyUrl);
         else setFailed(true);
       }}
-      style={{
-        width: "34px",
-        height: "34px",
-        objectFit: "cover",
-        borderRadius: "6px",
-        border: "1px solid var(--border)",
-        display: "block",
-      }}
     />
+  );
+}
+
+// Sum order amounts per currency, e.g. "GBP 120.50 · USD 30.00".
+function sumByCurrency(pairs) {
+  const totals = {};
+  for (const [currency, amount] of pairs) {
+    if (amount == null || !Number.isFinite(amount)) continue;
+    const key = currency || "";
+    totals[key] = (totals[key] || 0) + amount;
+  }
+  const parts = Object.entries(totals).map(([c, v]) => `${c} ${v.toFixed(2)}`.trim());
+  return parts.length ? parts.join(" · ") : "—";
+}
+
+function StatusBadge({ status }) {
+  if (status === "IN_PROGRESS") {
+    return (
+      <span className="badge badge-info">
+        <Loader strokeWidth={2.5} />
+        In progress
+      </span>
+    );
+  }
+  return (
+    <span className="badge badge-warning">
+      <Clock strokeWidth={2.5} />
+      To ship
+    </span>
   );
 }
 
@@ -56,6 +65,7 @@ export default function StoreOrdersPage() {
   const [expandedProduct, setExpandedProduct] = useState(null);
   const [imageSearchStatus, setImageSearchStatus] = useState("");
   const [imageSearchPending, setImageSearchPending] = useState(false);
+  const [query, setQuery] = useState("");
 
   async function loadStoreLabel() {
     const res = await fetch("/api/ebay/stores");
@@ -149,6 +159,19 @@ export default function StoreOrdersPage() {
     loadOrders();
   }, [storeId]);
 
+  const needle = query.trim().toLowerCase();
+  const visibleOrders = needle
+    ? orders.filter((order) =>
+        [order.orderId, order.buyerUsername, order.shipTo?.fullName, ...order.lineItems.flatMap((li) => [li.title, li.sku])]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(needle))
+      )
+    : orders;
+  const totalItems = visibleOrders.reduce((sum, order) => sum + (order.itemCount || 0), 0);
+  const totalValue = sumByCurrency(visibleOrders.map((o) => [o.currency, o.orderTotal]));
+  const earnedOrders = visibleOrders.filter((o) => o.earnings);
+  const totalEarnings = sumByCurrency(earnedOrders.map((o) => [o.earnings.currency, o.earnings.earnings]));
+
   return (
     <div>
       <Link href="/stores" className="back-link">
@@ -161,182 +184,252 @@ export default function StoreOrdersPage() {
           <h1 className="page-title">{storeLabel || "Store"}</h1>
           <p className="page-subtitle">Unshipped orders for this store.</p>
         </div>
-        <button onClick={loadOrders} className="btn btn-secondary">
+        <button onClick={loadOrders} className="btn btn-secondary" disabled={loading}>
           <RefreshCw size={14} strokeWidth={2} />
-          Refresh
+          {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
       {error && (
-        <div style={{ marginBottom: "16px" }}>
-          <p className="text-error">{error}</p>
-          {reconnectRequired && (
-            <a href="/api/ebay/connect" className="btn btn-primary" style={{ display: "inline-flex", marginTop: "8px", textDecoration: "none" }}>
-              Reconnect eBay
-            </a>
-          )}
+        <div className="alert" role="alert">
+          <CircleAlert strokeWidth={2} />
+          <div>
+            <div>{error}</div>
+            {reconnectRequired && (
+              <a href="/api/ebay/connect" className="btn btn-primary" style={{ marginTop: "8px" }}>
+                Reconnect eBay
+              </a>
+            )}
+          </div>
         </div>
       )}
-      {loading && <p className="text-muted">Loading orders…</p>}
+
       {imageSearchStatus && (
         <p className={imageSearchStatus.startsWith("Could not") || imageSearchStatus.startsWith("Image clipboard") ? "text-error" : "text-muted"} role="status">
           {imageSearchStatus}
         </p>
       )}
 
+      {(loading || orders.length > 0) && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-label">Orders to ship</div>
+            {loading ? <div className="skeleton" style={{ height: "30px", width: "48px" }} /> : <div className="stat-value">{visibleOrders.length}</div>}
+            <div className="stat-hint">{loading ? " " : `${totalItems} item${totalItems === 1 ? "" : "s"} in total`}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Order value</div>
+            {loading ? <div className="skeleton" style={{ height: "30px", width: "110px" }} /> : <div className="stat-value" style={{ fontSize: "20px" }}>{totalValue}</div>}
+            <div className="stat-hint">Before eBay fees</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Earnings</div>
+            {loading ? <div className="skeleton" style={{ height: "30px", width: "110px" }} /> : <div className="stat-value" style={{ fontSize: "20px" }}>{totalEarnings}</div>}
+            <div className="stat-hint good">{loading ? " " : `After fees · ${earnedOrders.length} of ${visibleOrders.length} orders posted`}</div>
+          </div>
+        </div>
+      )}
+
+      {loading && orders.length === 0 && (
+        <div className="panel">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="list-row">
+              <div className="skeleton" style={{ width: "44px", height: "44px" }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton" style={{ height: "14px", width: "55%", marginBottom: "6px" }} />
+                <div className="skeleton" style={{ height: "10px", width: "30%" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {!loading && orders.length === 0 && !error && (
         <div className="empty-state">
+          <div className="empty-icon">
+            <PackageSearch strokeWidth={2} />
+          </div>
           <p className="empty-title">No unshipped orders right now</p>
           <p className="empty-subtitle" style={{ marginBottom: 0 }}>
-            New orders will appear here automatically.
+            New orders will appear here when you refresh.
           </p>
         </div>
       )}
 
-      {!loading && orders.length > 0 && (
-        <div className="panel table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th>Order</th>
-                <th>Item</th>
-                <th>SKU</th>
-                <th>Variant</th>
-                <th>Qty</th>
-                <th>Order total</th>
-                <th>Earnings</th>
-                <th>Buyer</th>
-                <th>Ship to</th>
-                <th>Product data</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) =>
-                order.lineItems.map((li, idx) => {
-                  const rowKey = `${order.orderId}-${li.lineItemId}`;
-                  const productData = {
-                    orderId: order.orderId,
-                    lineItemId: li.lineItemId,
-                    legacyItemId: li.legacyItemId,
-                    title: li.title,
-                    sku: li.sku,
-                    quantity: li.quantity,
-                    variants: li.variants,
-                    catalog: li.product,
-                  };
-                  return (
-                  <Fragment key={rowKey}>
+      {orders.length > 0 && (
+        <>
+          <div className="toolbar">
+            <div className="search-field">
+              <Search strokeWidth={2} />
+              <input
+                className="input"
+                type="search"
+                placeholder="Search order, item, SKU or buyer"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-label="Search orders"
+              />
+            </div>
+            <span className="table-meta">
+              {visibleOrders.length === orders.length
+                ? `${orders.length} order${orders.length === 1 ? "" : "s"}`
+                : `${visibleOrders.length} of ${orders.length} orders`}
+            </span>
+          </div>
+
+          {visibleOrders.length === 0 ? (
+            <div className="empty-state">
+              <p className="empty-title">No orders match "{query}"</p>
+              <p className="empty-subtitle" style={{ marginBottom: 0 }}>Try a different order id, item, SKU or buyer.</p>
+            </div>
+          ) : (
+            <div className="panel table-wrap">
+              <table className="data-table">
+                <thead>
                   <tr>
-                    <td>
-                      {li.imageUrl ? (
-                        <>
-                          <ProductImage imageUrl={li.imageUrl} title={li.title} />
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            title="Copy product image and open AliExpress"
-                            aria-label={`Search AliExpress by image for ${li.title}`}
-                            disabled={imageSearchPending}
-                            onClick={() => searchAliExpressByImage(li.imageUrl)}
-                            style={{ padding: "5px 7px", marginTop: "4px" }}
-                          >
-                            <Search size={14} strokeWidth={2} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div
-                            style={{
-                              width: "34px",
-                              height: "34px",
-                              borderRadius: "6px",
-                              border: "1px solid var(--border)",
-                              background: "var(--surface-2)",
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            title="Search AliExpress by product title"
-                            aria-label={`Search AliExpress by title for ${li.title}`}
-                            onClick={() => searchAliExpressByTitle(li.title, li.variants)}
-                            style={{ padding: "5px 7px", marginTop: "4px" }}
-                          >
-                            <Search size={14} strokeWidth={2} />
-                          </button>
-                        </>
-                      )}
-                    </td>
-                    <td className="mono">{order.orderId}</td>
-                    <td>{li.title}</td>
-                    <td className="mono">{li.sku || "—"}</td>
-                    <td>
-                      {Object.entries(li.variants || {})
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(", ") || "—"}
-                    </td>
-                    <td className="mono">{li.quantity}</td>
-                    <td className="mono">
-                      {idx === 0 && order.orderTotal != null
-                        ? `${order.currency || ""} ${order.orderTotal.toFixed(2)}`
-                        : ""}
-                    </td>
-                    <td className="mono">
-                      {idx === 0
-                        ? order.earnings
-                          ? `${order.earnings.currency} ${order.earnings.earnings.toFixed(2)}`
-                          : "—"
-                        : ""}
-                    </td>
-                    <td>{idx === 0 ? order.shipTo.fullName || order.buyerUsername : ""}</td>
-                    <td>
-                      {idx === 0
-                        ? [
-                            order.shipTo.addressLine1,
-                            order.shipTo.city,
-                            order.shipTo.stateOrProvince,
-                            order.shipTo.postalCode,
-                            order.shipTo.countryCode,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")
-                        : ""}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        title="Inspect product data"
-                        aria-label={`Inspect product data for ${li.title}`}
-                        aria-expanded={expandedProduct === rowKey}
-                        onClick={() => setExpandedProduct(expandedProduct === rowKey ? null : rowKey)}
-                        style={{ padding: "5px 7px" }}
-                      >
-                        <Braces size={14} strokeWidth={2} />
-                        Data
-                      </button>
-                    </td>
+                    <th>Item</th>
+                    <th>Order</th>
+                    <th className="num">Qty</th>
+                    <th className="num">Total</th>
+                    <th className="num">Earnings</th>
+                    <th>Ship to</th>
+                    <th>Status</th>
+                    <th></th>
                   </tr>
-                  {expandedProduct === rowKey && (
-                    <tr>
-                      <td colSpan={11}>
-                        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", padding: "12px" }}>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "11px", marginBottom: "8px" }}>Fetched product data</div>
-                          <pre style={{ margin: 0, maxHeight: "320px", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-primary)", fontFamily: "var(--font-mono)", fontSize: "11px", lineHeight: 1.55 }}>
-                            {JSON.stringify(productData, null, 2)}
-                          </pre>
-                        </div>
-                      </td>
-                    </tr>
+                </thead>
+                <tbody>
+                  {visibleOrders.map((order) =>
+                    order.lineItems.map((li, idx) => {
+                      const rowKey = `${order.orderId}-${li.lineItemId}`;
+                      const variantText = Object.entries(li.variants || {})
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join(", ");
+                      const productData = {
+                        orderId: order.orderId,
+                        lineItemId: li.lineItemId,
+                        legacyItemId: li.legacyItemId,
+                        title: li.title,
+                        sku: li.sku,
+                        quantity: li.quantity,
+                        variants: li.variants,
+                        catalog: li.product,
+                      };
+                      const address = [
+                        order.shipTo.addressLine1,
+                        order.shipTo.city,
+                        order.shipTo.stateOrProvince,
+                        order.shipTo.postalCode,
+                        order.shipTo.countryCode,
+                      ]
+                        .filter(Boolean)
+                        .join(", ");
+                      return (
+                        <Fragment key={rowKey}>
+                          <tr className={idx > 0 ? "order-cont" : undefined}>
+                            <td>
+                              <div className="item-cell">
+                                {li.imageUrl ? (
+                                  <ProductImage imageUrl={li.imageUrl} title={li.title} />
+                                ) : (
+                                  <div className="thumb" />
+                                )}
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="item-title" title={li.title}>{li.title}</div>
+                                  <div className="item-meta">
+                                    {li.sku && <span className="mono">SKU {li.sku}</span>}
+                                    {variantText && <span>{variantText}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              {idx === 0 && (
+                                <>
+                                  <div className="mono" style={{ color: "var(--text-primary)" }}>{order.orderId}</div>
+                                  <div className="item-meta">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ""}</div>
+                                </>
+                              )}
+                            </td>
+                            <td className="num mono">{li.quantity}</td>
+                            <td className="num mono">
+                              {idx === 0 && order.orderTotal != null
+                                ? `${order.currency || ""} ${order.orderTotal.toFixed(2)}`
+                                : ""}
+                            </td>
+                            <td className="num mono" style={order.earnings && idx === 0 ? { color: "var(--success)" } : undefined}>
+                              {idx === 0
+                                ? order.earnings
+                                  ? `${order.earnings.currency} ${order.earnings.earnings.toFixed(2)}`
+                                  : "—"
+                                : ""}
+                            </td>
+                            <td style={{ minWidth: "200px" }}>
+                              {idx === 0 && (
+                                <>
+                                  <div style={{ fontWeight: 500 }}>{order.shipTo.fullName || order.buyerUsername}</div>
+                                  <div className="item-meta">{address}</div>
+                                </>
+                              )}
+                            </td>
+                            <td>{idx === 0 && <StatusBadge status={order.fulfillmentStatus} />}</td>
+                            <td>
+                              <div className="row-actions">
+                                {li.imageUrl ? (
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    title="Copy product image and open AliExpress"
+                                    aria-label={`Search AliExpress by image for ${li.title}`}
+                                    disabled={imageSearchPending}
+                                    onClick={() => searchAliExpressByImage(li.imageUrl)}
+                                  >
+                                    <Search strokeWidth={2} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    title="Search AliExpress by product title"
+                                    aria-label={`Search AliExpress by title for ${li.title}`}
+                                    onClick={() => searchAliExpressByTitle(li.title, li.variants)}
+                                  >
+                                    <Search strokeWidth={2} />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  title="Inspect product data"
+                                  aria-label={`Inspect product data for ${li.title}`}
+                                  aria-expanded={expandedProduct === rowKey}
+                                  onClick={() => setExpandedProduct(expandedProduct === rowKey ? null : rowKey)}
+                                >
+                                  <Braces strokeWidth={2} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {expandedProduct === rowKey && (
+                            <tr>
+                              <td colSpan={8}>
+                                <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface-2)", padding: "12px" }}>
+                                  <div style={{ color: "var(--text-secondary)", fontSize: "11px", marginBottom: "8px" }}>Fetched product data</div>
+                                  <pre style={{ margin: 0, maxHeight: "320px", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-primary)", fontFamily: "var(--font-geist-mono)", fontSize: "11px", lineHeight: 1.55 }}>
+                                    {JSON.stringify(productData, null, 2)}
+                                  </pre>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })
                   )}
-                  </Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

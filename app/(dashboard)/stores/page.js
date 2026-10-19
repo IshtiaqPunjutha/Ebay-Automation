@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Store, CircleAlert } from "lucide-react";
 
 export default function StoresPage() {
   const [stores, setStores] = useState([]);
@@ -55,12 +55,32 @@ export default function StoresPage() {
         </a>
       </div>
 
-      {error && <p className="text-error">{error}</p>}
-      {loading && <p className="text-muted">Loading stores…</p>}
+      {error && (
+        <div className="alert" role="alert">
+          <CircleAlert strokeWidth={2} />
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="panel">
+          <div className="list-row">
+            <div className="skeleton" style={{ width: "32px", height: "32px" }} />
+            <div style={{ flex: 1 }}>
+              <div className="skeleton" style={{ height: "14px", width: "160px", marginBottom: "6px" }} />
+              <div className="skeleton" style={{ height: "10px", width: "100px" }} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {!loading && stores.length === 0 && (
         <div className="empty-state">
+          <div className="empty-icon">
+            <Store strokeWidth={2} />
+          </div>
           <p className="empty-title">No store connected yet</p>
+          <p className="empty-subtitle">Connect an eBay seller account to see its orders here.</p>
           <a href="/api/ebay/connect" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
             <Plus strokeWidth={2.5} />
             Connect your eBay store
@@ -68,12 +88,12 @@ export default function StoresPage() {
         </div>
       )}
 
-      {stores.length > 0 && (
+      {!loading && stores.length > 0 && (
         <div className="panel">
           {stores.map((s) => (
             <div key={s.storeId} className="list-row">
-              <span className="status-dot" />
-              <div style={{ flex: 1 }}>
+              <div className="avatar">{(s.label || "?").slice(0, 2)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="list-row-title">{s.label}</div>
                 <div className="list-row-meta">
                   Connected {new Date(s.connectedAt).toLocaleDateString()}

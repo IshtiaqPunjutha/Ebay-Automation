@@ -52,7 +52,7 @@ const styles = {
   wrap: {
     minHeight: "100vh",
     background: "var(--bg)",
-    fontFamily: "var(--font-sans), sans-serif",
+    fontFamily: "var(--font-geist-sans), sans-serif",
     padding: "48px 20px",
   },
   card: {

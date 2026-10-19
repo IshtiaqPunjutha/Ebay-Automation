@@ -1,12 +1,5 @@
-import Sidebar from "@/components/Sidebar";
+import AppShell from "@/components/AppShell";
 
 export default function DashboardLayout({ children }) {
-  return (
-    <div className="app-shell">
-      <Sidebar />
-      <main className="main">
-        <div className="container">{children}</div>
-      </main>
-    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 }

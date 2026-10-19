@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, ArrowRight } from "lucide-react";
+import { Plus, ArrowRight, Store, PackageSearch, CircleAlert } from "lucide-react";
 
 export default function DashboardOverview() {
   const [stores, setStores] = useState([]);
@@ -45,16 +45,28 @@ export default function DashboardOverview() {
         </a>
       </div>
 
-      {error && <p className="text-error">{error}</p>}
+      {error && (
+        <div className="alert" role="alert">
+          <CircleAlert strokeWidth={2} />
+          {error}
+        </div>
+      )}
 
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-value">{loading ? "–" : stores.length}</div>
-          <div className="stat-label">Connected stores</div>
+          <div className="stat-label">
+            <Store strokeWidth={2} />
+            Connected stores
+          </div>
+          {loading ? <div className="skeleton" style={{ height: "30px", width: "48px" }} /> : <div className="stat-value">{stores.length}</div>}
+          <div className="stat-hint">{stores.length === 1 ? "1 eBay seller account" : "eBay seller accounts"}</div>
         </div>
         <div className="stat-card">
+          <div className="stat-label">
+            <PackageSearch strokeWidth={2} />
+            Orders in queue
+          </div>
           <div className="stat-value">0</div>
-          <div className="stat-label">Orders in queue</div>
           <div className="stat-hint">Arrives with the AliExpress matching step</div>
         </div>
       </div>
@@ -68,8 +80,23 @@ export default function DashboardOverview() {
         )}
       </div>
 
+      {loading && (
+        <div className="panel">
+          <div className="list-row">
+            <div className="skeleton" style={{ width: "32px", height: "32px" }} />
+            <div style={{ flex: 1 }}>
+              <div className="skeleton" style={{ height: "14px", width: "160px", marginBottom: "6px" }} />
+              <div className="skeleton" style={{ height: "10px", width: "100px" }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {!loading && stores.length === 0 && (
         <div className="empty-state">
+          <div className="empty-icon">
+            <Store strokeWidth={2} />
+          </div>
           <p className="empty-title">No store connected yet</p>
           <p className="empty-subtitle">
             Connect your eBay seller account to start pulling unshipped orders in here.
@@ -81,17 +108,21 @@ export default function DashboardOverview() {
         </div>
       )}
 
-      {stores.length > 0 && (
+      {!loading && stores.length > 0 && (
         <div className="panel">
           {stores.slice(0, 5).map((s) => (
             <Link key={s.storeId} href={`/stores/${s.storeId}`} className="list-row">
-              <span className="status-dot" />
-              <div style={{ flex: 1 }}>
+              <div className="avatar">{(s.label || "?").slice(0, 2)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="list-row-title">{s.label}</div>
                 <div className="list-row-meta">
                   Connected {new Date(s.connectedAt).toLocaleDateString()}
                 </div>
               </div>
+              <span className="badge badge-success">
+                <span className="status-dot" style={{ width: 5, height: 5, boxShadow: "none" }} />
+                Connected
+              </span>
               <ArrowRight size={15} strokeWidth={2} style={{ color: "var(--text-tertiary)" }} />
             </Link>
           ))}
