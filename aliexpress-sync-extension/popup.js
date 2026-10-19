@@ -52,7 +52,12 @@ async function test() {
   const res = await chrome.runtime.sendMessage({ type: "TEST" });
   if (res?.ok) {
     const names = (res.data.stores || []).map((s) => s.label).join(", ") || "no stores yet";
-    msg(`Connected. Stores: ${names}`, true);
+    msg(
+      res.data.scope === "store"
+        ? `Connected to one store: ${names}. This token works for that store only.`
+        : `Connected. Stores: ${names}`,
+      true
+    );
   } else {
     msg(res?.error || "Could not connect.", false);
   }

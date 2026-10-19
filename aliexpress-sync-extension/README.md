@@ -6,7 +6,10 @@ Sends your AliExpress order numbers to the matching eBay order in the dashboard.
 
 1. In Chrome open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and pick this `aliexpress-sync-extension` folder.
-3. In the dashboard open **Account, then Browser extension** and press **Create token**.
+3. In the dashboard open **Account, then Browser extension**, choose **Token for** (all stores, or one
+   store) and press **Create token**. A token made for one store makes the extension show only
+   that store's orders and sync only into that store, so each browser or AliExpress account can be
+   tied to its own store. You can create one token per store.
 4. Click the extension icon, paste the dashboard address and the token, press **Test connection**.
    Chrome asks once for permission to talk to your dashboard; allow it.
 

@@ -164,13 +164,18 @@
       {},
       `position:fixed;left:${Math.max(8, Math.min(rect.left, innerWidth - 340))}px;top:${Math.min(rect.bottom + 6, innerHeight - 120)}px;width:330px;max-height:min(60vh,420px);overflow:auto;z-index:2147483647;background:#fff;color:#18181b;border:1px solid #d4d4d8;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:13px Arial,sans-serif;`
     );
-    menu.appendChild(
-      el(
-        "div",
-        { textContent: `Which eBay order is this for? (${choices.length})` },
-        "position:sticky;top:0;padding:8px 10px;font-weight:600;border-bottom:1px solid #eee;background:#fff;"
-      )
+    // Sticky header with a search box: type part of an order number, buyer name or product to narrow the list.
+    const header = el("div", {}, "position:sticky;top:0;padding:8px 10px;border-bottom:1px solid #eee;background:#fff;z-index:1;");
+    const title = el("div", { textContent: `Which eBay order is this for? (${choices.length})` }, "font-weight:600;");
+    const search = el(
+      "input",
+      { type: "search", placeholder: "Search order no., buyer or product" },
+      "display:block;width:100%;margin-top:6px;padding:6px 8px;border:1px solid #d4d4d8;border-radius:8px;font:13px Arial,sans-serif;color:#18181b;background:#fff;box-sizing:border-box;"
     );
+    header.append(title, search);
+    menu.appendChild(header);
+    const none = el("div", { textContent: "No orders match." }, "display:none;padding:12px 10px;color:#71717a;");
+    const rows = [];
     for (const choice of choices) {
       const entry = choice.entry;
       const row = el(
@@ -178,6 +183,7 @@
         { type: "button" },
         "display:block;width:100%;text-align:left;padding:8px 10px;border:none;border-bottom:1px solid #f4f4f5;background:#fff;color:#18181b;font:13px Arial,sans-serif;cursor:pointer;"
       );
+      rows.push({ row, entry, haystack: [entry.orderId, entry.buyer, entry.title, entry.storeLabel].join(" ").toLowerCase() });
       const head = [`eBay ${entry.orderId}`, entry.buyer, entry.source === "arrow" ? "opened from arrow" : ""].filter(Boolean).join(" · ");
       row.appendChild(el("div", { textContent: head }, "font-weight:600;"));
       const detail = [entry.title ? entry.title.slice(0, 60) : "", entry.storeLabel].filter(Boolean).join("  |  ");
@@ -190,8 +196,29 @@
       });
       menu.appendChild(row);
     }
+    menu.appendChild(none);
+
+    function applyFilter() {
+      const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+      let shown = 0;
+      for (const item of rows) {
+        const match = words.every((w) => item.haystack.includes(w));
+        item.row.style.display = match ? "block" : "none";
+        if (match) shown += 1;
+      }
+      none.style.display = shown === 0 ? "block" : "none";
+      title.textContent = `Which eBay order is this for? (${shown}${shown === choices.length ? "" : ` of ${choices.length}`})`;
+    }
+    search.addEventListener("input", applyFilter);
+    search.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeMenu();
+      // Enter picks the first order that is still shown.
+      if (e.key === "Enter") rows.find((item) => item.row.style.display !== "none")?.row.click();
+    });
+
     document.documentElement.appendChild(menu);
     openMenu = menu;
+    search.focus();
   }
 
   async function sync(button, id, node, entry) {
@@ -222,8 +249,12 @@
 
     // Two sources of "which eBay order is this for": the ones opened with the dashboard's
     // arrow (remembered in this browser) and the orders the dashboard says still need a number.
-    const arrow = state.pending.map((p) => ({ ...p, source: "arrow" }));
     const fromDashboard = await send({ type: "GET_CANDIDATES" });
+    // A token made for one store must not offer orders of other stores that were opened with the arrow.
+    const allowedStores = fromDashboard?.ok ? new Set(fromDashboard.storeIds || []) : null;
+    const arrow = state.pending
+      .filter((p) => !allowedStores || allowedStores.has(p.storeId))
+      .map((p) => ({ ...p, source: "arrow" }));
     paint(button, id);
     button.disabled = false;
 
@@ -281,15 +312,27 @@
   // AliExpress is a single-page app: moving to "My orders" does not reload the page, and the
   // list fills in late, so the page is rescanned when it changes and when the address changes.
   let lastHref = "";
+  let lastStateAt = 0;
+  let lastLog = "";
+  // A scan runs 0.9s after the first change and then not again until it has run. (It used to
+  // restart the wait on every change; the order list keeps changing, so it never got to run.)
   function schedule() {
-    if (dead) return;
-    clearTimeout(timer);
+    if (dead || timer) return;
     timer = setTimeout(async () => {
+      timer = null;
       try {
         if (!alive()) return die();
         if (!onOrderPage()) return removeButtons();
-        await refreshState();
+        if (Date.now() - lastStateAt > 4000) {
+          lastStateAt = Date.now();
+          await refreshState();
+        }
         addButtons();
+        const summary = `refs=${lib.orderIdsFromText(document.body.innerText).length} buttons=${document.querySelectorAll(`[${BTN_ATTR}]`).length}`;
+        if (summary !== lastLog) {
+          lastLog = summary;
+          console.info(`[AliExpress Sync] ${summary} on`, location.pathname);
+        }
       } catch (err) {
         console.error("[AliExpress Sync] scan failed:", err);
       }
@@ -303,10 +346,15 @@
       if (onOrderPage()) schedule();
     });
     observer.observe(document.body, { childList: true, subtree: true });
+    let ticks = 0;
     poll = setInterval(() => {
       if (!alive()) return die();
+      ticks += 1;
       if (location.href !== lastHref) {
         lastHref = location.href;
+        schedule();
+      } else if (ticks % 4 === 0 && onOrderPage()) {
+        // Safety net: rescan every few seconds in case the page changed without us noticing.
         schedule();
       }
     }, 800);

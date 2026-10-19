@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { MAX_REFS_PER_ORDER, getEbayStore, getOrderRefs, setOrderRefs } from "@/lib/store";
-import { userIdFromBearer } from "@/lib/exttoken";
+import { authFromBearer, canUseStore } from "@/lib/exttoken";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -15,8 +15,9 @@ const REF_PATTERN = /^[A-Za-z0-9-]{6,32}$/;
 // Adds one AliExpress order number to an eBay order. Safe to repeat: a number
 // already on the order is not added twice.
 export async function POST(request) {
-  const userId = await userIdFromBearer(request);
-  if (!userId) return NextResponse.json({ error: "Invalid or missing token" }, { status: 401 });
+  const auth = await authFromBearer(request);
+  if (!auth) return NextResponse.json({ error: "Invalid or missing token" }, { status: 401 });
+  const userId = auth.userId;
 
   let body;
   try {
@@ -30,6 +31,10 @@ export async function POST(request) {
   if (!STORE_ID_PATTERN.test(storeId)) return NextResponse.json({ error: "Invalid store id" }, { status: 400 });
   if (!ORDER_ID_PATTERN.test(orderId)) return NextResponse.json({ error: "Invalid eBay order id" }, { status: 400 });
   if (!REF_PATTERN.test(aliOrderId)) return NextResponse.json({ error: "Invalid AliExpress order number" }, { status: 400 });
+
+  if (!canUseStore(auth, storeId)) {
+    return NextResponse.json({ error: "This token is for a different store." }, { status: 403 });
+  }
 
   try {
     // The store must belong to the token's owner.

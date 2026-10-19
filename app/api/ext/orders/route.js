@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchNewOrdersLight, isTokenExpired, refreshAccessToken } from "@/lib/ebay";
 import { buildCandidates } from "@/lib/candidates";
 import { getEbayStore, getOrderRefs, getStoreSheet, updateStoreAccessToken } from "@/lib/store";
-import { userIdFromBearer } from "@/lib/exttoken";
+import { authFromBearer, canUseStore } from "@/lib/exttoken";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -15,13 +15,17 @@ const STORE_ID_PATTERN = /^[a-z0-9-]{1,64}$/i;
 // The store's orders that still need shipping and have no AliExpress number yet, newest first.
 // Add &all=1 to include orders that already have one.
 export async function GET(request) {
-  const userId = await userIdFromBearer(request);
-  if (!userId) return NextResponse.json({ error: "Invalid or missing token" }, { status: 401 });
+  const auth = await authFromBearer(request);
+  if (!auth) return NextResponse.json({ error: "Invalid or missing token" }, { status: 401 });
+  const userId = auth.userId;
 
   const { searchParams } = new URL(request.url);
   const storeId = searchParams.get("store");
   if (!storeId || !STORE_ID_PATTERN.test(storeId)) {
     return NextResponse.json({ error: "Missing or invalid store id" }, { status: 400 });
+  }
+  if (!canUseStore(auth, storeId)) {
+    return NextResponse.json({ error: "This token is for a different store." }, { status: 403 });
   }
 
   let store = await getEbayStore(userId, storeId);

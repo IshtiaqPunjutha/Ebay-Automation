@@ -87,7 +87,8 @@ async function getCandidates() {
       });
     }
   }
-  const result = { ok: true, candidates, errors };
+  // The stores this token may use (a token made for one store lists just that store).
+  const result = { ok: true, candidates, errors, storeIds: (stores.data.stores || []).map((s) => s.storeId) };
   candidateCache = { at: Date.now(), result };
   return result;
 }
