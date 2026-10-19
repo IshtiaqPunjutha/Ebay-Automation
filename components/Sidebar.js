@@ -2,33 +2,46 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Store, PackageSearch, Link2, Settings, LogOut } from "lucide-react";
+import { ChevronLeft, LayoutGrid, Store, PackageSearch, Table2, ListChecks } from "lucide-react";
+import AccountMenu from "./AccountMenu";
 
-const groups = [
-  {
-    label: "Workspace",
-    items: [
-      { href: "/", label: "Dashboard", icon: LayoutGrid },
-      { href: "/stores", label: "Stores", icon: Store },
-    ],
-  },
-  {
-    label: "Coming soon",
-    items: [
-      { label: "Order queue", icon: PackageSearch, soon: true },
-      { label: "Sheet mapping", icon: Link2, soon: true },
-      { label: "Settings", icon: Settings, soon: true },
-    ],
-  },
-];
+// The sidebar's contents follow where you are: workspace pages show the
+// general menu, and inside a store it switches to that store's own menu.
+function workspaceGroups() {
+  return [
+    {
+      label: "Workspace",
+      items: [
+        { href: "/", label: "Dashboard", icon: LayoutGrid },
+        { href: "/stores", label: "Stores", icon: Store },
+      ],
+    },
+    {
+      label: "Coming soon",
+      items: [{ label: "Order queue", icon: ListChecks, soon: true }],
+    },
+  ];
+}
 
-export default function Sidebar({ collapsed, onNavigate }) {
+function storeGroups(storeId) {
+  return [
+    {
+      label: "Store",
+      items: [
+        { href: `/stores/${storeId}`, label: "Orders", icon: PackageSearch, exact: true },
+        { href: `/stores/${storeId}/sheet`, label: "Sheet mapping", icon: Table2 },
+      ],
+    },
+    {
+      label: "Coming soon",
+      items: [{ label: "Order queue", icon: ListChecks, soon: true }],
+    },
+  ];
+}
+
+export default function Sidebar({ collapsed, store, onNavigate }) {
   const pathname = usePathname();
-
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
+  const groups = store ? storeGroups(store.id) : workspaceGroups();
 
   return (
     <aside className="sidebar" aria-label="Main navigation">
@@ -40,7 +53,18 @@ export default function Sidebar({ collapsed, onNavigate }) {
         </div>
       </div>
 
-      <nav className="sidebar-nav">
+      {store && (
+        <div className="store-card" key={store.id}>
+          <Link href="/stores" className="store-card-back" onClick={onNavigate}>
+            <ChevronLeft strokeWidth={2} />
+            All stores
+          </Link>
+          <div className="store-card-name">{store.label || "Store"}</div>
+          <div className="store-card-sub">eBay store</div>
+        </div>
+      )}
+
+      <nav className={`sidebar-nav${store ? " slide-in" : ""}`} key={store ? store.id : "workspace"}>
         {groups.map((group) => (
           <div key={group.label} className="sidebar-group">
             <div className="sidebar-section-label">{group.label}</div>
@@ -55,7 +79,7 @@ export default function Sidebar({ collapsed, onNavigate }) {
                   </div>
                 );
               }
-              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              const active = item.exact || item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
@@ -75,10 +99,7 @@ export default function Sidebar({ collapsed, onNavigate }) {
       </nav>
 
       <div className="sidebar-footer">
-        <button onClick={handleLogout} className="nav-link" title={collapsed ? "Log out" : undefined}>
-          <LogOut strokeWidth={2} />
-          <span className="nav-label">Log out</span>
-        </button>
+        <AccountMenu collapsed={collapsed} />
       </div>
     </aside>
   );

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 
-export default function ThemeToggle({ compact = false }) {
+// compact: icon-only button (top bar). variant="menu": a row for the account menu.
+export default function ThemeToggle({ compact = false, variant }) {
   const [theme, setTheme] = useState("light");
 
   useEffect(() => {
@@ -21,6 +22,15 @@ export default function ThemeToggle({ compact = false }) {
 
   const Icon = theme === "dark" ? Sun : Moon;
   const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+
+  if (variant === "menu") {
+    return (
+      <button onClick={toggle} className="menu-item" role="menuitem">
+        <Icon strokeWidth={2} />
+        {theme === "dark" ? "Light mode" : "Dark mode"}
+      </button>
+    );
+  }
 
   if (compact) {
     return (
