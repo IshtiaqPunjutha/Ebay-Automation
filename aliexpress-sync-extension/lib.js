@@ -43,14 +43,19 @@
     return (entry.aliItemIds || []).some((id) => wanted.has(id));
   }
 
-  // The eBay order whose product appears in the AliExpress order, or null.
-  // When several match, the ones opened with the arrow come first, then the newest.
-  function matchByProduct(entries, itemIds) {
+  // Every eBay order whose product appears in the AliExpress order: the ones opened with the
+  // arrow first, then the newest.
+  function matchesByProduct(entries, itemIds) {
     const wanted = new Set(itemIds || []);
-    if (wanted.size === 0) return null;
-    const matches = (entries || []).filter((e) => matchesProduct(e, wanted));
-    if (matches.length === 0) return null;
-    return [...matches].sort((a, b) => (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt)[0];
+    if (wanted.size === 0) return [];
+    return (entries || [])
+      .filter((e) => matchesProduct(e, wanted))
+      .sort((a, b) => (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
+  }
+
+  // The first of those, or null.
+  function matchByProduct(entries, itemIds) {
+    return matchesByProduct(entries, itemIds)[0] || null;
   }
 
   // Which waiting eBay order does an AliExpress order most likely belong to?
@@ -87,7 +92,7 @@
     }
   }
 
-  const api = { orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, matchByProduct, pickPending, mergeChoices, originOf };
+  const api = { orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };
   root.AliSyncLib = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

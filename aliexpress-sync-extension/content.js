@@ -58,15 +58,39 @@
     return node;
   }
 
-  function toast(text, isError = false) {
+  // Messages stack in the top right corner instead of covering each other. An optional
+  // action (such as Undo) shows as a small button inside the message.
+  function toast(text, isError = false, action = null) {
     const show = () => {
+      let box = document.getElementById("ebay-sync-toasts");
+      if (!box) {
+        box = el(
+          "div",
+          { id: "ebay-sync-toasts" },
+          "position:fixed;top:16px;right:16px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none;"
+        );
+        document.documentElement.appendChild(box);
+      }
       const t = el(
         "div",
-        { textContent: text },
-        `position:fixed;top:16px;right:16px;max-width:360px;z-index:2147483647;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;border-left:4px solid ${isError ? "#d93025" : "#188038"};font:13px/1.4 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3)`
+        {},
+        `max-width:360px;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;border-left:4px solid ${isError ? "#d93025" : "#188038"};font:13px/1.4 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:auto;`
       );
-      document.documentElement.appendChild(t);
-      setTimeout(() => t.remove(), 6500);
+      t.appendChild(el("div", { textContent: text }));
+      if (action) {
+        const button = el(
+          "button",
+          { type: "button", textContent: action.label },
+          "margin-top:6px;padding:3px 12px;border:1px solid #8ab4f8;border-radius:12px;background:transparent;color:#8ab4f8;font:600 12px Arial,sans-serif;cursor:pointer;"
+        );
+        button.addEventListener("click", () => {
+          t.remove();
+          action.onClick();
+        });
+        t.appendChild(button);
+      }
+      box.appendChild(t);
+      setTimeout(() => t.remove(), action ? 12000 : 6500);
     };
     if (document.documentElement) show();
     else document.addEventListener("DOMContentLoaded", show, { once: true });
@@ -184,7 +208,14 @@
         "display:block;width:100%;text-align:left;padding:8px 10px;border:none;border-bottom:1px solid #f4f4f5;background:#fff;color:#18181b;font:13px Arial,sans-serif;cursor:pointer;"
       );
       rows.push({ row, entry, haystack: [entry.orderId, entry.buyer, entry.title, entry.storeLabel].join(" ").toLowerCase() });
-      const head = [`eBay ${entry.orderId}`, entry.buyer, entry.source === "arrow" ? "opened from arrow" : ""].filter(Boolean).join(" · ");
+      const head = [
+        `eBay ${entry.orderId}`,
+        entry.buyer,
+        entry.sameProduct ? "same product" : "",
+        entry.source === "arrow" ? "opened from arrow" : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
       row.appendChild(el("div", { textContent: head }, "font-weight:600;"));
       const detail = [entry.title ? entry.title.slice(0, 60) : "", entry.storeLabel].filter(Boolean).join("  |  ");
       if (detail) row.appendChild(el("div", { textContent: detail }, "color:#71717a;font-size:12px;margin-top:2px;"));
@@ -229,7 +260,15 @@
     if (res?.ok) {
       await refreshState();
       paint(button, id);
-      toast(`Synced ${id} to eBay order ${entry.orderId}.`);
+      toast(`Synced ${id} to eBay order ${entry.orderId}${entry.buyer ? ` (${entry.buyer})` : ""}.`, false, {
+        label: "Undo",
+        onClick: async () => {
+          const undone = await send({ type: "UNSYNC", storeId: entry.storeId, orderId: entry.orderId, aliOrderId: id });
+          await refreshState();
+          paint(button, id);
+          toast(undone?.ok ? `Removed ${id} from eBay order ${entry.orderId}.` : undone?.error || "Could not undo.", !undone?.ok);
+        },
+      });
     } else {
       paint(button, id);
       toast(res?.error || "Could not sync this number.", true);
@@ -271,12 +310,16 @@
       toast(`Some stores could not be loaded: ${fromDashboard.errors.join("; ")}`, true);
     }
 
-    // Sure enough to sync straight away: the product in this AliExpress order is the one
-    // linked to that eBay order. Otherwise ask, with the arrow's orders first, then newest.
-    const matched = lib.matchByProduct(choices, itemIdsNear(node));
-    if (matched) return sync(button, id, node, matched);
-    const ordered = [...choices].sort((a, b) => (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
-    chooseOrder(button, ordered.map((entry) => ({ entry })), (entry) => sync(button, id, entry && node, entry));
+    // Sync straight away only when exactly one eBay order has this product. With two or more
+    // (the same product sold twice) it cannot know which one, so it asks, same-product orders first.
+    const matches = lib.matchesByProduct(choices, itemIdsNear(node));
+    if (matches.length === 1) return sync(button, id, node, matches[0]);
+    const matchedKeys = new Set(matches.map((m) => `${m.storeId}|${m.orderId}`));
+    const rest = choices
+      .filter((c) => !matchedKeys.has(`${c.storeId}|${c.orderId}`))
+      .sort((a, b) => (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
+    const ordered = [...matches.map((m) => ({ ...m, sameProduct: true })), ...rest];
+    chooseOrder(button, ordered.map((entry) => ({ entry })), (entry) => sync(button, id, node, entry));
   }
 
   function addButtons() {

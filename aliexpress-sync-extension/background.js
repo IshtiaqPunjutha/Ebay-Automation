@@ -122,6 +122,21 @@ async function handle(message) {
     }
     case "TEST":
       return await api("/api/ext/stores");
+    case "UNSYNC": {
+      // Undo: take the number back off the eBay order in the dashboard.
+      const result = await api("/api/ext/orderref", {
+        method: "DELETE",
+        body: JSON.stringify({ storeId: message.storeId, orderId: message.orderId, aliOrderId: message.aliOrderId }),
+      });
+      if (result.ok) {
+        const { synced } = await chrome.storage.local.get("synced");
+        const next = { ...(synced || {}) };
+        delete next[message.aliOrderId];
+        await chrome.storage.local.set({ synced: next });
+        candidateCache = null;
+      }
+      return result;
+    }
     case "SYNC": {
       const result = await api("/api/ext/orderref", {
         method: "POST",
