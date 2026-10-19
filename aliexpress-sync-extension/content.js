@@ -1,14 +1,39 @@
 // Runs on AliExpress pages. Two jobs:
 //  1. When a product page was opened from the dashboard (?ebayOrder=...&ebayStore=...),
 //     remember which eBay order it is being bought for.
-//  2. On AliExpress order pages, show a small "Sync to dashboard" panel that sends an
-//     AliExpress order number to the matching eBay order.
+//  2. On AliExpress order pages, put a small "Sync" button right next to each order's
+//     "Ref. Number" that sends that number to the matching eBay order in the dashboard.
+// Everything is built with DOM calls (no innerHTML) so strict page policies cannot block it.
 (function () {
   const lib = globalThis.AliSyncLib;
   if (!lib || !globalThis.chrome?.runtime?.id) return;
 
+  const VERSION = chrome.runtime.getManifest?.().version || "";
+  console.info(`[AliExpress Sync ${VERSION}] active on`, location.pathname);
+
   const send = (message) => chrome.runtime.sendMessage(message).catch(() => ({ ok: false, error: "Extension unavailable" }));
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // ---- small helpers -----------------------------------------------------------
+  function el(tag, props = {}, style = "") {
+    const node = document.createElement(tag);
+    Object.assign(node, props);
+    if (style) node.style.cssText = style;
+    return node;
+  }
+
+  function toast(text, isError = false) {
+    const show = () => {
+      const t = el(
+        "div",
+        { textContent: text },
+        `position:fixed;top:16px;right:16px;max-width:360px;z-index:2147483647;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;border-left:4px solid ${isError ? "#d93025" : "#188038"};font:13px/1.4 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3)`
+      );
+      document.documentElement.appendChild(t);
+      setTimeout(() => t.remove(), 6500);
+    };
+    if (document.documentElement) show();
+    else document.addEventListener("DOMContentLoaded", show, { once: true });
+  }
 
   // ---- 1. Link a product page to an eBay order --------------------------------
   const params = new URLSearchParams(location.search);
@@ -29,227 +54,196 @@
     history.replaceState(history.state, "", location.pathname + (query ? `?${query}` : "") + location.hash);
   }
 
-  // ---- 2. Panel on order pages ------------------------------------------------
-  let host = null;
-  let root = null;
+  // ---- 2. "Sync" buttons next to each Ref. Number -----------------------------
+  const BTN_ATTR = "data-ebay-sync";
+  const BTN_STYLE =
+    "margin-left:10px;padding:2px 10px;border:none;border-radius:12px;background:#2a78d6;color:#fff;font:600 12px/18px Arial,sans-serif;cursor:pointer;vertical-align:middle;white-space:nowrap;";
 
-  function ensureHost() {
-    if (host && host.isConnected) return root;
-    host = document.createElement("div");
-    host.id = "ebay-dashboard-sync-host";
-    host.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483647;";
-    root = host.attachShadow({ mode: "open" });
-    root.innerHTML = `<style>
-      :host { all: initial; }
-      * { box-sizing: border-box; font-family: -apple-system, "Segoe UI", Arial, sans-serif; }
-      .card { width: 330px; max-width: calc(100vw - 32px); background: #fff; color: #18181b; border: 1px solid #d4d4d8; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.22); font-size: 13px; overflow: hidden; }
-      .head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #2a78d6; color: #fff; cursor: pointer; font-weight: 600; }
-      .body { padding: 10px 12px; max-height: 60vh; overflow: auto; }
-      .row { padding: 8px 0; border-bottom: 1px solid #eee; }
-      .row:last-child { border-bottom: none; }
-      .num { font-family: ui-monospace, Consolas, monospace; font-size: 12px; font-weight: 600; }
-      select, input { width: 100%; margin-top: 6px; padding: 6px 8px; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 12px; background: #fff; color: #18181b; }
-      button.sync { margin-top: 6px; width: 100%; padding: 7px; border: none; border-radius: 8px; background: #2a78d6; color: #fff; font-weight: 600; cursor: pointer; }
-      button.sync:disabled { opacity: .55; cursor: default; }
-      .ok { color: #0a860a; font-weight: 600; margin-top: 4px; }
-      .err { color: #d03b3b; margin-top: 4px; }
-      .muted { color: #71717a; font-size: 12px; }
-      .hint { color: #71717a; font-size: 12px; margin-top: 4px; }
-    </style><div class="card"><div class="head" id="head"><span>Sync to dashboard</span><span id="count"></span></div><div class="body" id="body"></div></div>`;
-    document.documentElement.appendChild(host);
-    root.getElementById("head").addEventListener("click", () => {
-      state.open = !state.open;
-      render();
-    });
-    root.getElementById("body").addEventListener("click", onBodyClick);
-    root.getElementById("body").addEventListener("change", onBodyChange);
-    return root;
-  }
-
-  const state = {
-    open: true,
-    configured: true,
-    pending: [],
-    synced: {},
-    items: [], // { id, itemIds }
-    selection: {}, // aliOrderId -> "storeId|orderId"
-    status: {}, // aliOrderId -> { busy, error }
-    manual: "",
-  };
-
-  function pendingKey(p) {
-    return `${p.storeId}|${p.orderId}`;
-  }
-
-  // Product ids shown next to an order number, used to match it to the right eBay order.
-  function itemIdsNear(orderId) {
-    const found = new Set();
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-      if (!node.nodeValue.includes(orderId)) continue;
-      let el = node.parentElement;
-      for (let depth = 0; el && depth < 10; depth += 1, el = el.parentElement) {
-        // Once the container holds more than one order number it is the whole list,
-        // not this order's card; its products would belong to other orders too.
-        if (lib.orderIdsFromText(el.innerText || "").length > 1) break;
-        const links = [...el.querySelectorAll("a[href]")].map((a) => lib.itemIdFromUrl(a.href)).filter(Boolean);
-        if (links.length) {
-          links.forEach((id) => found.add(id));
-          break;
-        }
-      }
-      break;
-    }
-    return [...found];
-  }
-
-  function scan() {
-    if (!document.body) return;
-    const ids = [...new Set([...lib.orderIdsFromUrl(location.search), ...lib.orderIdsFromText(document.body.innerText)])].slice(0, 30);
-    const manualIds = state.items.filter((i) => i.manual).map((i) => i.id);
-    const all = [...new Set([...ids, ...manualIds])];
-    state.items = all.map((id) => ({ id, manual: manualIds.includes(id) && !ids.includes(id), itemIds: itemIdsNear(id) }));
-    // Pre-select the best eBay order for each AliExpress order, unless the user already chose.
-    for (const item of state.items) {
-      if (state.selection[item.id]) continue;
-      const pick = lib.pickPending(state.pending, item.itemIds);
-      if (pick) state.selection[item.id] = pendingKey(pick.entry);
-    }
-    render();
-  }
+  const state = { pending: [], synced: {}, configured: true };
 
   async function refreshState() {
     const res = await send({ type: "GET_STATE" });
     if (res?.ok) {
-      state.configured = res.configured;
       state.pending = res.pending;
       state.synced = res.synced;
+      state.configured = res.configured;
     }
   }
 
-  function render() {
-    const r = ensureHost();
-    const body = r.getElementById("body");
-    r.getElementById("count").textContent = state.open ? "–" : `${state.items.length} order${state.items.length === 1 ? "" : "s"}`;
-    body.style.display = state.open ? "block" : "none";
-    if (!state.open) return;
-
-    if (!state.configured) {
-      body.innerHTML = `<div class="muted">Open the extension (puzzle icon, then AliExpress Sync) and enter your dashboard address and token first.</div>`;
-      return;
-    }
-
-    let html = "";
-    if (state.items.length === 0) {
-      html += `<div class="muted">No AliExpress "Ref. Number" found on this page yet. Scroll the orders into view, or add the number below.</div>`;
-    }
-    for (const item of state.items) {
-      const done = state.synced[item.id];
-      const st = state.status[item.id] || {};
-      html += `<div class="row"><div class="num">${esc(item.id)}</div>`;
-      if (done) {
-        html += `<div class="ok">Synced to eBay order ${esc(done.orderId)}</div>`;
-      } else if (state.pending.length === 0) {
-        html += `<div class="hint">Open the product from the dashboard's AliExpress arrow so it knows which eBay order this is for.</div>`;
-      } else {
-        const selected = state.selection[item.id];
-        const byProduct = lib.pickPending(state.pending, item.itemIds)?.byProduct;
-        html += `<select data-id="${esc(item.id)}">${state.pending
-          .map((p) => `<option value="${esc(pendingKey(p))}" ${pendingKey(p) === selected ? "selected" : ""}>eBay ${esc(p.orderId)}</option>`)
-          .join("")}</select>`;
-        if (byProduct && selected && selected === pendingKey(lib.pickPending(state.pending, item.itemIds).entry)) {
-          html += `<div class="hint">Matched by product.</div>`;
-        }
-        html += `<button class="sync" data-sync="${esc(item.id)}" ${st.busy ? "disabled" : ""}>${st.busy ? "Syncing…" : "Sync to dashboard"}</button>`;
-        if (st.error) html += `<div class="err">${esc(st.error)}</div>`;
-      }
-      html += `</div>`;
-    }
-    html += `<div class="row"><div class="muted">Number not listed? Add it:</div><input id="manual" placeholder="AliExpress order number" value="${esc(state.manual)}" /></div>`;
-    body.innerHTML = html;
-    const manual = body.querySelector("#manual");
-    if (manual) {
-      manual.addEventListener("input", () => (state.manual = manual.value));
-      manual.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
-        const id = manual.value.trim();
-        if (/^\d{12,20}$/.test(id)) {
-          state.items.push({ id, manual: true, itemIds: [] });
-          state.manual = "";
-          scan();
-        }
-      });
-    }
-  }
-
-  async function onBodyClick(e) {
-    const id = e.target?.dataset?.sync;
-    if (!id) return;
-    const selected = state.selection[id] || (root.querySelector(`select[data-id="${CSS.escape(id)}"]`)?.value ?? "");
-    const [storeId, ...rest] = selected.split("|");
-    const orderId = rest.join("|");
-    if (!storeId || !orderId) return;
-    state.status[id] = { busy: true };
-    render();
-    const res = await send({ type: "SYNC", storeId, orderId, aliOrderId: id });
-    state.status[id] = res?.ok ? {} : { error: res?.error || "Could not sync." };
-    await refreshState();
-    render();
-  }
-
-  function onBodyChange(e) {
-    const id = e.target?.dataset?.id;
-    if (id) state.selection[id] = e.target.value;
-  }
-
-  // ---- small page toast -----------------------------------------------------------
-  function toast(text) {
-    const show = () => {
-      const t = document.createElement("div");
-      t.textContent = text;
-      t.style.cssText =
-        "position:fixed;top:16px;right:16px;max-width:340px;z-index:2147483647;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;border-left:4px solid #188038;font:13px/1.4 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3)";
-      document.documentElement.appendChild(t);
-      setTimeout(() => t.remove(), 6000);
-    };
-    if (document.documentElement) show();
-    else document.addEventListener("DOMContentLoaded", show, { once: true });
-  }
-
-  // AliExpress is a single-page app: moving from the home page to "My orders" does not
-  // reload the page, so the address is checked again each time instead of only once.
   const onOrderPage = () => /order/i.test(location.pathname) || lib.orderIdsFromUrl(location.search).length > 0;
 
-  function hidePanel() {
-    if (host && host.isConnected) host.remove();
+  // The smallest elements whose text holds an order number, e.g. the
+  // <div>Ref. Number : 3077062172300812<span>Copy</span></div> of an order card.
+  function findRefElements() {
+    const found = [];
+    for (const node of document.body.querySelectorAll("div, span, p, li")) {
+      if (node.closest(`[${BTN_ATTR}]`)) continue;
+      const text = node.textContent || "";
+      if (text.length > 90) continue;
+      const ids = lib.orderIdsFromText(text);
+      if (ids.length !== 1) continue;
+      // Skip containers whose child already holds the number; keep the innermost one.
+      if ([...node.children].some((child) => lib.orderIdsFromText(child.textContent || "").length === 1)) continue;
+      found.push({ node, id: ids[0] });
+    }
+    return found;
   }
 
+  // Product ids of the order card that this number belongs to.
+  function itemIdsNear(node) {
+    const found = new Set();
+    let box = node;
+    for (let depth = 0; box && depth < 12; depth += 1, box = box.parentElement) {
+      // Once the container holds more than one order number it is the whole list.
+      if (lib.orderIdsFromText(box.innerText || "").length > 1) break;
+      const links = [...box.querySelectorAll("a[href]")].map((a) => lib.itemIdFromUrl(a.href)).filter(Boolean);
+      if (links.length) {
+        links.forEach((id) => found.add(id));
+        break;
+      }
+    }
+    return [...found];
+  }
+
+  function paint(button, id) {
+    const done = state.synced[id];
+    // Only touch the DOM when something changed, or the page observer would see our own edit and rescan forever.
+    const label = done ? "Synced ✓" : "Sync";
+    if (button.textContent !== label) button.textContent = label;
+    button.title = done ? `Synced to eBay order ${done.orderId}` : "Send this number to your dashboard";
+    button.style.cssText = done ? BTN_STYLE + "background:#188038;" : BTN_STYLE;
+  }
+
+  let openMenu = null;
+  function closeMenu() {
+    if (openMenu) openMenu.remove();
+    openMenu = null;
+  }
+
+  function chooseOrder(button, choices, onPick) {
+    closeMenu();
+    const rect = button.getBoundingClientRect();
+    const menu = el(
+      "div",
+      {},
+      `position:fixed;left:${Math.max(8, Math.min(rect.left, innerWidth - 270))}px;top:${rect.bottom + 6}px;width:260px;z-index:2147483647;background:#fff;color:#18181b;border:1px solid #d4d4d8;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:13px Arial,sans-serif;overflow:hidden;`
+    );
+    menu.appendChild(el("div", { textContent: "Which eBay order is this for?" }, "padding:8px 10px;font-weight:600;border-bottom:1px solid #eee;"));
+    for (const choice of choices) {
+      const row = el(
+        "button",
+        { type: "button", textContent: `eBay ${choice.entry.orderId}${choice.hint ? ` (${choice.hint})` : ""}` },
+        "display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:#fff;color:#18181b;font:13px Arial,sans-serif;cursor:pointer;"
+      );
+      row.addEventListener("mouseenter", () => (row.style.background = "#f4f4f5"));
+      row.addEventListener("mouseleave", () => (row.style.background = "#fff"));
+      row.addEventListener("click", () => {
+        closeMenu();
+        onPick(choice.entry);
+      });
+      menu.appendChild(row);
+    }
+    document.documentElement.appendChild(menu);
+    openMenu = menu;
+  }
+
+  async function sync(button, id, node, entry) {
+    button.textContent = "Syncing…";
+    button.disabled = true;
+    const res = await send({ type: "SYNC", storeId: entry.storeId, orderId: entry.orderId, aliOrderId: id });
+    button.disabled = false;
+    if (res?.ok) {
+      await refreshState();
+      paint(button, id);
+      toast(`Synced ${id} to eBay order ${entry.orderId}.`);
+    } else {
+      paint(button, id);
+      toast(res?.error || "Could not sync this number.", true);
+    }
+  }
+
+  async function onClick(button, id, node) {
+    if (state.synced[id]) return;
+    await refreshState();
+    if (!state.configured) {
+      return toast("Open the extension (puzzle icon, AliExpress Sync) and enter your dashboard address and token first.", true);
+    }
+    if (state.pending.length === 0) {
+      return toast("Open this product from the dashboard's AliExpress arrow first, so the extension knows which eBay order it is for.", true);
+    }
+    const itemIds = itemIdsNear(node);
+    const pick = lib.pickPending(state.pending, itemIds);
+    // Sure enough to sync straight away: matched by product, or only one order is waiting.
+    if (pick.byProduct || state.pending.length === 1) return sync(button, id, node, pick.entry);
+    const newest = pick.entry;
+    const choices = [...state.pending]
+      .sort((a, b) => b.addedAt - a.addedAt)
+      .map((entry) => ({ entry, hint: entry === newest ? "newest" : "" }));
+    chooseOrder(button, choices, (entry) => sync(button, id, node, entry));
+  }
+
+  function addButtons() {
+    if (!document.body) return;
+    // One cheap pass over the page text first; the element search below is only worth it when a number exists.
+    if (lib.orderIdsFromText(document.body.innerText).length === 0) return;
+    for (const { node, id } of findRefElements()) {
+      const existing = node.querySelector(`[${BTN_ATTR}]`);
+      if (existing) {
+        if (existing.getAttribute(BTN_ATTR) === id) {
+          paint(existing, id);
+          continue;
+        }
+        existing.remove(); // the page reused this element for another order
+      }
+      const button = el("button", { type: "button" });
+      button.setAttribute(BTN_ATTR, id);
+      paint(button, id);
+      button.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick(button, id, node);
+      });
+      node.appendChild(button);
+    }
+  }
+
+  function removeButtons() {
+    closeMenu();
+    document.querySelectorAll(`[${BTN_ATTR}]`).forEach((b) => b.remove());
+  }
+
+  // AliExpress is a single-page app: moving to "My orders" does not reload the page, and the
+  // list fills in late, so the page is rescanned when it changes and when the address changes.
   let timer = null;
   let lastHref = "";
   function schedule() {
     clearTimeout(timer);
     timer = setTimeout(async () => {
-      if (!onOrderPage()) return hidePanel();
-      await refreshState();
-      scan();
-    }, 1200);
+      try {
+        if (!onOrderPage()) return removeButtons();
+        await refreshState();
+        addButtons();
+      } catch (err) {
+        console.error("[AliExpress Sync] scan failed:", err);
+      }
+    }, 900);
   }
 
   function start() {
     lastHref = location.href;
     schedule();
-    // Order lists load their content late; rescan when the page changes.
     new MutationObserver(() => {
       if (onOrderPage()) schedule();
     }).observe(document.body, { childList: true, subtree: true });
-    // Notice in-app navigation (no reload) to or from an order page.
     setInterval(() => {
       if (location.href !== lastHref) {
         lastHref = location.href;
         schedule();
       }
     }, 800);
+    document.addEventListener("mousedown", (e) => {
+      if (openMenu && !openMenu.contains(e.target)) closeMenu();
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
