@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEbayStore, getStoreSheet, saveStoreSheet } from "@/lib/store";
+import { MAX_ALI_COLUMNS, getEbayStore, getStoreSheet, normalizeSheetRow, saveStoreSheet } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,8 @@ export async function GET(request) {
   }
 }
 
-// PUT /api/ebay/sheet?store=<storeId>   body: { rows: [{ id, itemId, title, ebayLink, aliLink, notes }] }
+// PUT /api/ebay/sheet?store=<storeId>
+//   body: { aliColumns, rows: [{ id, itemId, title, ebayLink, aliLinks: [..], notes }] }
 export async function PUT(request) {
   const storeId = new URL(request.url).searchParams.get("store");
   const auth = await authorize(request, storeId);
@@ -56,19 +57,30 @@ export async function PUT(request) {
   }
 
   const rows = body.rows
-    .map((row) => ({
-      id: cleanCell(row?.id) || crypto.randomUUID(),
-      itemId: cleanCell(row?.itemId),
-      title: cleanCell(row?.title),
-      ebayLink: cleanCell(row?.ebayLink),
-      aliLink: cleanCell(row?.aliLink),
-      notes: cleanCell(row?.notes),
-    }))
+    .map((row) =>
+      normalizeSheetRow({
+        id: cleanCell(row?.id) || crypto.randomUUID(),
+        itemId: cleanCell(row?.itemId),
+        title: cleanCell(row?.title),
+        ebayLink: cleanCell(row?.ebayLink),
+        // Each AliExpress column is one entry; `aliLink` (old single-link field) is the fallback.
+        aliLinks: Array.isArray(row?.aliLinks)
+          ? row.aliLinks.slice(0, MAX_ALI_COLUMNS).map(cleanCell)
+          : row?.aliLink
+            ? [cleanCell(row.aliLink)]
+            : [],
+        notes: cleanCell(row?.notes),
+      })
+    )
     // Fully empty rows are not worth storing.
-    .filter((row) => row.ebayLink || row.aliLink || row.notes || row.title);
+    .filter((row) => row.ebayLink || row.aliLinks.length || row.notes || row.title);
+
+  const requested = Number.isInteger(body.aliColumns) ? body.aliColumns : 1;
+  const widest = rows.reduce((max, r) => Math.max(max, r.aliLinks.length), 1);
+  const aliColumns = Math.min(MAX_ALI_COLUMNS, Math.max(1, requested, widest));
 
   try {
-    const saved = await saveStoreSheet(auth.userId, storeId, rows);
+    const saved = await saveStoreSheet(auth.userId, storeId, rows, aliColumns);
     return NextResponse.json({ ok: true, rows: saved.rows.length, updatedAt: saved.updatedAt });
   } catch (err) {
     console.error(`Error saving sheet for store ${storeId}:`, err);

@@ -83,6 +83,7 @@ export async function POST(request) {
         itemId: listing.itemId,
         title: listing.title,
         ebayLink: listing.url,
+        aliLinks: [],
         aliLink: "",
         notes: "",
       });
@@ -90,8 +91,15 @@ export async function POST(request) {
       added += 1;
     }
 
-    const saved = await saveStoreSheet(userId, storeId, rows);
-    return NextResponse.json({ ok: true, rows: saved.rows, added, found: listings.length, seller });
+    const saved = await saveStoreSheet(userId, storeId, rows, sheet.aliColumns);
+    return NextResponse.json({
+      ok: true,
+      rows: saved.rows,
+      aliColumns: saved.aliColumns,
+      added,
+      found: listings.length,
+      seller,
+    });
   } catch (err) {
     console.error(`Listing sync failed for store ${storeId}:`, err);
     return NextResponse.json({ error: "Could not fetch listings from eBay. Please try again." }, { status: 502 });

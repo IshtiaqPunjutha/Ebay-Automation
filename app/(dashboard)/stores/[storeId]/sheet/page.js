@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { Check, CircleAlert, Download, ExternalLink, Plus, Search, Trash2, LoaderCircle } from "lucide-react";
+import { Check, CircleAlert, Download, ExternalLink, Minus, Plus, Search, Trash2, LoaderCircle } from "lucide-react";
 
 const FILTERS = [
   { key: "all", label: "All rows" },
@@ -10,25 +10,72 @@ const FILTERS = [
   { key: "mapped", label: "Mapped" },
 ];
 
-function matchesFilter(row, filter) {
-  if (filter === "missing") return Boolean(row.ebayLink) && !row.aliLink;
-  if (filter === "mapped") return Boolean(row.ebayLink) && Boolean(row.aliLink);
-  return true;
-}
-
-const COLUMNS = [
-  { key: "ebayLink", label: "eBay link", placeholder: "https://www.ebay.co.uk/itm/…", link: true },
-  { key: "aliLink", label: "AliExpress link", placeholder: "https://www.aliexpress.com/item/…", link: true },
-  { key: "title", label: "Product", placeholder: "Filled in when you fetch your listings" },
-  { key: "notes", label: "Notes", placeholder: "Variant, size, anything to remember" },
-];
-
+const MAX_ALI_COLUMNS = 10;
 const MIN_ROWS = 30;
 const ADD_ROWS = 10;
 const SAVE_DELAY_MS = 800;
 
+const aliLinksOf = (row) => (Array.isArray(row.aliLinks) ? row.aliLinks : []);
+const hasAli = (row) => aliLinksOf(row).some(Boolean);
+const hasContent = (row) => Boolean(row.ebayLink || row.title || row.notes || hasAli(row));
+
+function matchesFilter(row, filter) {
+  if (filter === "missing") return Boolean(row.ebayLink) && !hasAli(row);
+  if (filter === "mapped") return Boolean(row.ebayLink) && hasAli(row);
+  return true;
+}
+
+// The grid's columns: eBay link, one column per AliExpress link, product, notes.
+// Each column knows how to read and write its value on a row.
+function buildColumns(aliColumns) {
+  const columns = [
+    {
+      id: "ebay",
+      label: "eBay link",
+      placeholder: "https://www.ebay.co.uk/itm/…",
+      link: true,
+      get: (row) => row.ebayLink || "",
+      // A changed eBay link means the stored item id no longer applies.
+      set: (row, value) => ({ ...row, ebayLink: value, itemId: "" }),
+    },
+  ];
+  for (let i = 0; i < aliColumns; i += 1) {
+    columns.push({
+      id: `ali${i}`,
+      aliIndex: i,
+      label: i === 0 ? "AliExpress link" : `AliExpress link ${i + 1}`,
+      placeholder: "https://www.aliexpress.com/item/…",
+      link: true,
+      get: (row) => aliLinksOf(row)[i] || "",
+      set: (row, value) => {
+        const links = [...aliLinksOf(row)];
+        while (links.length <= i) links.push("");
+        links[i] = value;
+        return { ...row, aliLinks: links, aliLink: links[0] || "" };
+      },
+    });
+  }
+  columns.push(
+    {
+      id: "title",
+      label: "Product",
+      placeholder: "Filled in when you fetch your listings",
+      get: (row) => row.title || "",
+      set: (row, value) => ({ ...row, title: value }),
+    },
+    {
+      id: "notes",
+      label: "Notes",
+      placeholder: "Variant, size, anything to remember",
+      get: (row) => row.notes || "",
+      set: (row, value) => ({ ...row, notes: value }),
+    }
+  );
+  return columns;
+}
+
 function newRow(values = {}) {
-  return { id: crypto.randomUUID(), itemId: "", title: "", ebayLink: "", aliLink: "", notes: "", ...values };
+  return { id: crypto.randomUUID(), itemId: "", title: "", ebayLink: "", aliLinks: [], aliLink: "", notes: "", ...values };
 }
 
 function padRows(rows, minimum = MIN_ROWS) {
@@ -44,6 +91,7 @@ function isUrl(value) {
 export default function SheetMappingPage() {
   const { storeId } = useParams();
   const [rows, setRows] = useState([]);
+  const [aliColumns, setAliColumns] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saveState, setSaveState] = useState("idle"); // idle | pending | saving | saved | error
@@ -52,9 +100,12 @@ export default function SheetMappingPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const rowsRef = useRef([]);
+  const aliColumnsRef = useRef(1);
   const dirtyRef = useRef(false);
   const timerRef = useRef(null);
   const tableRef = useRef(null);
+
+  const columns = buildColumns(aliColumns);
 
   const save = useCallback(
     async (rowsToSave, { keepalive = false } = {}) => {
@@ -64,7 +115,7 @@ export default function SheetMappingPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           // Blank padding rows are only for display; don't send them.
-          body: JSON.stringify({ rows: rowsToSave.filter((r) => r.ebayLink || r.aliLink || r.notes || r.title) }),
+          body: JSON.stringify({ rows: rowsToSave.filter(hasContent), aliColumns: aliColumnsRef.current }),
           keepalive,
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Save failed");
@@ -78,6 +129,15 @@ export default function SheetMappingPage() {
     [storeId]
   );
 
+  function applySheet(data) {
+    const loaded = padRows(data.rows || []);
+    rowsRef.current = loaded;
+    setRows(loaded);
+    const cols = Math.min(MAX_ALI_COLUMNS, Math.max(1, data.aliColumns || 1));
+    aliColumnsRef.current = cols;
+    setAliColumns(cols);
+  }
+
   // Load the saved sheet.
   useEffect(() => {
     if (!storeId) return;
@@ -90,9 +150,7 @@ export default function SheetMappingPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Could not load the sheet.");
         if (cancelled) return;
-        const loaded = padRows(data.rows || []);
-        rowsRef.current = loaded;
-        setRows(loaded);
+        applySheet(data);
       } catch (err) {
         if (!cancelled) setError(err.message || "Could not load the sheet.");
       }
@@ -114,9 +172,13 @@ export default function SheetMappingPage() {
     };
   }, [save]);
 
-  function commit(nextRows) {
+  function commit(nextRows, nextAliColumns) {
     rowsRef.current = nextRows;
     setRows(nextRows);
+    if (nextAliColumns !== undefined) {
+      aliColumnsRef.current = nextAliColumns;
+      setAliColumns(nextAliColumns);
+    }
     dirtyRef.current = true;
     setSaveState("pending");
     setError("");
@@ -144,9 +206,7 @@ export default function SheetMappingPage() {
       const res = await fetch(`/api/ebay/sheet/sync?store=${encodeURIComponent(storeId)}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not fetch listings.");
-      const merged = padRows(data.rows || []);
-      rowsRef.current = merged;
-      setRows(merged);
+      applySheet(data);
       setSaveState("saved");
       setSyncMessage(
         data.added > 0
@@ -159,12 +219,8 @@ export default function SheetMappingPage() {
     setSyncing(false);
   }
 
-  function updateCell(rowIndex, key, value) {
-    const next = rowsRef.current.map((row, i) => {
-      if (i !== rowIndex) return row;
-      // A changed eBay link means the stored item id no longer applies.
-      return key === "ebayLink" ? { ...row, ebayLink: value, itemId: "" } : { ...row, [key]: value };
-    });
+  function updateCell(rowIndex, column, value) {
+    const next = rowsRef.current.map((row, i) => (i === rowIndex ? column.set(row, value) : row));
     // Typing in the last rows keeps the sheet growing, like a spreadsheet.
     commit(rowIndex >= next.length - 3 ? padRows(next, next.length + ADD_ROWS) : next);
   }
@@ -176,6 +232,25 @@ export default function SheetMappingPage() {
 
   function addRows() {
     commit([...rowsRef.current, ...Array.from({ length: ADD_ROWS }, () => newRow())]);
+  }
+
+  function addAliColumn() {
+    if (aliColumnsRef.current >= MAX_ALI_COLUMNS) return;
+    commit(rowsRef.current, aliColumnsRef.current + 1);
+  }
+
+  // The last AliExpress column can only be removed while it is empty, so no link is lost.
+  const lastAliIndex = aliColumns - 1;
+  const lastAliEmpty = rows.every((row) => !aliLinksOf(row)[lastAliIndex]);
+  const canRemoveAliColumn = aliColumns > 1 && lastAliEmpty;
+
+  function removeAliColumn() {
+    if (!canRemoveAliColumn) return;
+    const next = rowsRef.current.map((row) => {
+      const links = aliLinksOf(row).slice(0, lastAliIndex);
+      return { ...row, aliLinks: links, aliLink: links[0] || "" };
+    });
+    commit(next, aliColumnsRef.current - 1);
   }
 
   // Pasting from Excel / Google Sheets: tab-separated columns, newline-separated rows.
@@ -191,11 +266,10 @@ export default function SheetMappingPage() {
     const next = [...rowsRef.current];
     while (next.length < rowIndex + grid.length) next.push(newRow());
     grid.forEach((cells, r) => {
-      const target = { ...next[rowIndex + r] };
+      let target = next[rowIndex + r];
       cells.forEach((cell, c) => {
-        const column = COLUMNS[colIndex + c];
-        if (column) target[column.key] = cell.trim();
-        if (column?.key === "ebayLink") target.itemId = "";
+        const column = columns[colIndex + c];
+        if (column) target = column.set(target, cell.trim());
       });
       next[rowIndex + r] = target;
     });
@@ -225,12 +299,12 @@ export default function SheetMappingPage() {
     .filter(({ row }) => {
       if (!matchesFilter(row, filter)) return false;
       if (!needle) return true;
-      return [row.title, row.ebayLink, row.aliLink, row.notes, row.itemId].some((v) =>
+      return [row.title, row.ebayLink, ...aliLinksOf(row), row.notes, row.itemId].some((v) =>
         String(v || "").toLowerCase().includes(needle)
       );
     });
-  const filled = rows.filter((r) => r.ebayLink || r.aliLink || r.notes || r.title).length;
-  const mapped = rows.filter((r) => r.ebayLink && r.aliLink).length;
+  const filled = rows.filter(hasContent).length;
+  const mapped = rows.filter((r) => r.ebayLink && hasAli(r)).length;
 
   return (
     <div>
@@ -282,7 +356,7 @@ export default function SheetMappingPage() {
         <div className="stat-card">
           <div className="stat-label">Fully mapped</div>
           <div className="stat-value">{loading ? "–" : mapped}</div>
-          <div className="stat-hint">Have both an eBay and an AliExpress link</div>
+          <div className="stat-hint">Have an eBay link and at least one AliExpress link</div>
         </div>
       </div>
 
@@ -321,18 +395,46 @@ export default function SheetMappingPage() {
                 </button>
               ))}
             </div>
+            <div className="col-controls" role="group" aria-label="AliExpress columns">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={addAliColumn}
+                disabled={aliColumns >= MAX_ALI_COLUMNS}
+                title="Add another AliExpress link column"
+              >
+                <Plus strokeWidth={2.5} />
+                AliExpress column
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={removeAliColumn}
+                disabled={!canRemoveAliColumn}
+                title={
+                  aliColumns <= 1
+                    ? "At least one AliExpress column is needed"
+                    : canRemoveAliColumn
+                      ? "Remove the last AliExpress column"
+                      : "The last AliExpress column still has links. Clear them to remove it."
+                }
+                aria-label="Remove last AliExpress column"
+              >
+                <Minus strokeWidth={2.5} />
+              </button>
+            </div>
             <span className="table-meta">
               {isFiltering ? `${visibleRows.length} of ${filled} rows` : `${filled} rows`}
             </span>
           </div>
 
           <div className="panel sheet-wrap">
-            <table className="sheet" ref={tableRef}>
+            <table className="sheet" ref={tableRef} style={{ minWidth: `${100 + columns.length * 230}px` }}>
               <thead>
                 <tr>
                   <th className="sheet-index">#</th>
-                  {COLUMNS.map((col) => (
-                    <th key={col.key}>{col.label}</th>
+                  {columns.map((col) => (
+                    <th key={col.id}>{col.label}</th>
                   ))}
                   <th className="sheet-actions" />
                 </tr>
@@ -340,7 +442,7 @@ export default function SheetMappingPage() {
               <tbody>
                 {isFiltering && visibleRows.length === 0 && (
                   <tr>
-                    <td colSpan={COLUMNS.length + 2} style={{ padding: "32px", textAlign: "center", color: "var(--text-secondary)" }}>
+                    <td colSpan={columns.length + 2} style={{ padding: "32px", textAlign: "center", color: "var(--text-secondary)" }}>
                       No rows match.
                     </td>
                   </tr>
@@ -348,16 +450,16 @@ export default function SheetMappingPage() {
                 {visibleRows.map(({ row, index: rowIndex }, visibleIndex) => (
                   <tr key={row.id}>
                     <td className="sheet-index">{rowIndex + 1}</td>
-                    {COLUMNS.map((col, colIndex) => {
-                      const value = row[col.key];
+                    {columns.map((col, colIndex) => {
+                      const value = col.get(row);
                       return (
-                        <td key={col.key}>
+                        <td key={col.id}>
                           <div className="sheet-cell">
                             <input
                               data-cell={`${visibleIndex}-${colIndex}`}
                               value={value}
                               placeholder={rowIndex === 0 ? col.placeholder : ""}
-                              onChange={(e) => updateCell(rowIndex, col.key, e.target.value)}
+                              onChange={(e) => updateCell(rowIndex, col, e.target.value)}
                               onPaste={(e) => handlePaste(e, rowIndex, colIndex)}
                               onKeyDown={(e) => handleKeyDown(e, visibleIndex, colIndex)}
                               spellCheck={false}

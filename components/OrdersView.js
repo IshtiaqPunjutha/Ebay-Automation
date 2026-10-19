@@ -1,9 +1,81 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Braces, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Braces, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
+
+// The numeric item id inside an eBay listing link (…/itm/123456789012).
+function itemIdFromLink(link) {
+  const match = String(link || "").match(/\/itm\/(?:[^/?]+\/)?(\d{9,})/);
+  return match ? match[1] : "";
+}
+
+function isUrl(value) {
+  return /^https?:\/\/\S+$/i.test(String(value || "").trim());
+}
+
+// Opens the product's AliExpress page. The first link (the column next to the
+// eBay link in the sheet) is the main one; extra links sit behind a "+N" menu.
+function AliExpressOpen({ links }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function close(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  if (!links || links.length === 0) {
+    return (
+      <span className="icon-btn ali-none" title="No AliExpress link for this item in the sheet" aria-label="No AliExpress link">
+        <ArrowUpRight strokeWidth={2} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="ali-open-wrap" ref={ref}>
+      <a
+        className="icon-btn ali-open"
+        href={links[0]}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open on AliExpress"
+        aria-label="Open on AliExpress"
+      >
+        <ArrowUpRight strokeWidth={2.25} />
+      </a>
+      {links.length > 1 && (
+        <>
+          <button
+            type="button"
+            className="ali-more-btn"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            title={`${links.length - 1} more AliExpress link${links.length > 2 ? "s" : ""}`}
+          >
+            +{links.length - 1}
+          </button>
+          {open && (
+            <div className="ali-menu" role="menu">
+              {links.map((link, i) => (
+                <a key={link + i} href={link} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => setOpen(false)}>
+                  <ArrowUpRight strokeWidth={2} />
+                  AliExpress link {i + 1}
+                </a>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </span>
+  );
+}
 
 // Copies `text` on click and flashes a check mark. `children` is the visible
 // content (the whole thing is the click target); without children it renders
@@ -147,6 +219,32 @@ export default function OrdersView({ status = "new" }) {
     } catch (e) {}
     setReady(true);
   }, []);
+
+  // eBay item id -> AliExpress links, taken from this store's sheet mapping.
+  const [aliLinks, setAliLinks] = useState({});
+
+  async function loadSheetLinks() {
+    try {
+      const res = await fetch(`/api/ebay/sheet?store=${encodeURIComponent(storeId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const map = {};
+      for (const row of data.rows || []) {
+        const itemId = row.itemId || itemIdFromLink(row.ebayLink);
+        const links = (Array.isArray(row.aliLinks) ? row.aliLinks : row.aliLink ? [row.aliLink] : [])
+          .map((l) => String(l || "").trim())
+          .filter(isUrl);
+        if (itemId && links.length) map[itemId] = links;
+      }
+      setAliLinks(map);
+    } catch (e) {
+      // The arrow simply shows as "no link" if the sheet cannot be read.
+    }
+  }
+
+  useEffect(() => {
+    if (storeId) loadSheetLinks();
+  }, [storeId]);
 
   async function loadStoreLabel() {
     const res = await fetch("/api/ebay/stores");
@@ -300,7 +398,14 @@ export default function OrdersView({ status = "new" }) {
             {copy.subtitle}
           </p>
         </div>
-        <button onClick={loadOrders} className="btn btn-secondary" disabled={loading}>
+        <button
+          onClick={() => {
+            loadOrders();
+            loadSheetLinks();
+          }}
+          className="btn btn-secondary"
+          disabled={loading}
+        >
           <RefreshCw size={14} strokeWidth={2} />
           {loading ? "Refreshing…" : "Refresh"}
         </button>
@@ -524,6 +629,7 @@ export default function OrdersView({ status = "new" }) {
                             <td>{idx === 0 && <StatusBadge status={order.fulfillmentStatus} />}</td>
                             <td>
                               <div className="row-actions">
+                                <AliExpressOpen links={li.legacyItemId ? aliLinks[li.legacyItemId] : undefined} />
                                 {li.imageUrl ? (
                                   <button
                                     type="button"

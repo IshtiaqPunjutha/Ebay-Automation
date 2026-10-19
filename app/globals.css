@@ -875,6 +875,87 @@ a.list-row:hover,
   margin-top: 2px;
 }
 
+/* "Open on AliExpress" arrow in the orders table */
+.ali-open-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.icon-btn.ali-open {
+  color: var(--accent);
+  background: var(--accent-soft);
+  text-decoration: none;
+}
+
+.icon-btn.ali-open:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.icon-btn.ali-none {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.icon-btn.ali-none:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ali-more-btn {
+  margin-left: 2px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ali-more-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.ali-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 170px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+}
+
+.ali-menu a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ali-menu a:hover {
+  background: var(--surface-hover);
+}
+
+.ali-menu svg {
+  width: 13px;
+  height: 13px;
+  color: var(--text-tertiary);
+}
+
 .row-actions {
   display: flex;
   gap: 4px;
@@ -909,6 +990,17 @@ a.list-row:hover,
 
 .search-field .input {
   padding-left: 32px;
+}
+
+.col-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.col-controls .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Segmented filter control: one button per option, the active one is raised. */
