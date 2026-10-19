@@ -3,7 +3,44 @@
 import { Fragment, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Braces, CircleAlert, Clock, Loader, PackageSearch, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, Braces, Check, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search } from "lucide-react";
+
+// Copies `text` on click and flashes a check mark. `children` is the visible
+// content (the whole thing is the click target); without children it renders
+// as a small icon-only button.
+function CopyButton({ text, label, children }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy(e) {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const Icon = copied ? Check : Copy;
+  return (
+    <button
+      type="button"
+      className={children ? "copy-block" : "icon-btn copy-icon"}
+      onClick={copy}
+      title={copied ? "Copied" : label}
+      aria-label={label}
+    >
+      {children}
+      <Icon strokeWidth={2} style={copied ? { color: "var(--success)" } : undefined} />
+    </button>
+  );
+}
 
 function ProductImage({ imageUrl, title }) {
   const proxyUrl = `/api/ebay/image-search?url=${encodeURIComponent(imageUrl)}`;
@@ -314,15 +351,19 @@ export default function StoreOrdersPage() {
                         variants: li.variants,
                         catalog: li.product,
                       };
-                      const address = [
+                      const addressParts = [
                         order.shipTo.addressLine1,
+                        order.shipTo.addressLine2,
                         order.shipTo.city,
                         order.shipTo.stateOrProvince,
                         order.shipTo.postalCode,
                         order.shipTo.countryCode,
-                      ]
-                        .filter(Boolean)
-                        .join(", ");
+                      ].filter(Boolean);
+                      const address = addressParts.join(", ");
+                      const recipient = order.shipTo.fullName || order.buyerUsername;
+                      const phone = order.shipTo.phone;
+                      // Everything a courier label needs, one item per line.
+                      const fullBlock = [recipient, ...addressParts, phone].filter(Boolean).join("\n");
                       return (
                         <Fragment key={rowKey}>
                           <tr className={idx > 0 ? "order-cont" : undefined}>
@@ -366,8 +407,19 @@ export default function StoreOrdersPage() {
                             <td style={{ minWidth: "200px" }}>
                               {idx === 0 && (
                                 <>
-                                  <div style={{ fontWeight: 500 }}>{order.shipTo.fullName || order.buyerUsername}</div>
-                                  <div className="item-meta">{address}</div>
+                                  <div style={{ fontWeight: 500 }}>{recipient}</div>
+                                  {phone ? (
+                                    <div className="phone-line">
+                                      <Phone strokeWidth={2} />
+                                      <span className="mono">{phone}</span>
+                                      <CopyButton text={phone} label="Copy phone number" />
+                                    </div>
+                                  ) : (
+                                    <div className="item-meta">No phone number</div>
+                                  )}
+                                  <CopyButton text={fullBlock} label="Copy full address (name, address, phone)">
+                                    <span className="item-meta" style={{ margin: 0 }}>{address}</span>
+                                  </CopyButton>
                                 </>
                               )}
                             </td>
