@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Braces, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
 
 // The numeric item id inside an eBay listing link (…/itm/123456789012).
 function itemIdFromLink(link) {
@@ -371,7 +371,6 @@ export default function OrdersView({ status = "new" }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reconnectRequired, setReconnectRequired] = useState(false);
-  const [expandedProduct, setExpandedProduct] = useState(null);
   const [imageSearchStatus, setImageSearchStatus] = useState("");
   const [imageSearchPending, setImageSearchPending] = useState(false);
   const [query, setQuery] = useState("");
@@ -667,6 +666,14 @@ export default function OrdersView({ status = "new" }) {
           .some((value) => String(value).toLowerCase().includes(needle))
       )
     : shipmentFiltered;
+  // When every amount on the page is in one currency, show it once in the column
+  // headers ("Total (GBP)") and keep the cells to plain numbers. Mixed currencies
+  // keep the code in each cell.
+  const currenciesOnPage = new Set(
+    visibleOrders.flatMap((o) => [o.currency, o.earnings?.currency]).filter(Boolean)
+  );
+  const singleCurrency = currenciesOnPage.size === 1 ? [...currenciesOnPage][0] : "";
+
   // Tracking numbers of the orders shown that are not yet delivered; 17TRACK takes up to 40 at once.
   const trackableNumbers = [
     ...new Set(
@@ -881,8 +888,8 @@ export default function OrdersView({ status = "new" }) {
                     <th>Item</th>
                     <th>Order</th>
                     <th className="num">Qty</th>
-                    <th className="num">Total</th>
-                    <th className="num">Earnings</th>
+                    <th className="num">Total{singleCurrency ? ` (${singleCurrency})` : ""}</th>
+                    <th className="num">Earnings{singleCurrency ? ` (${singleCurrency})` : ""}</th>
                     <th>Ship to</th>
                     <th>AliExpress order</th>
                     {status === "dispatched" && <th>Tracking</th>}
@@ -897,16 +904,6 @@ export default function OrdersView({ status = "new" }) {
                       const variantText = Object.entries(li.variants || {})
                         .map(([k, v]) => `${k}: ${v}`)
                         .join(", ");
-                      const productData = {
-                        orderId: order.orderId,
-                        lineItemId: li.lineItemId,
-                        legacyItemId: li.legacyItemId,
-                        title: li.title,
-                        sku: li.sku,
-                        quantity: li.quantity,
-                        variants: li.variants,
-                        catalog: li.product,
-                      };
                       const addressParts = [
                         order.shipTo.addressLine1,
                         order.shipTo.addressLine2,
@@ -950,13 +947,17 @@ export default function OrdersView({ status = "new" }) {
                             <td className="num mono">{li.quantity}</td>
                             <td className="num mono">
                               {idx === 0 && order.orderTotal != null
-                                ? `${order.currency || ""} ${order.orderTotal.toFixed(2)}`
+                                ? singleCurrency
+                                  ? order.orderTotal.toFixed(2)
+                                  : `${order.currency || ""} ${order.orderTotal.toFixed(2)}`.trim()
                                 : ""}
                             </td>
                             <td className="num mono" style={order.earnings && idx === 0 ? { color: "var(--success)" } : undefined}>
                               {idx === 0
                                 ? order.earnings
-                                  ? `${order.earnings.currency} ${order.earnings.earnings.toFixed(2)}`
+                                  ? singleCurrency
+                                    ? order.earnings.earnings.toFixed(2)
+                                    : `${order.earnings.currency} ${order.earnings.earnings.toFixed(2)}`
                                   : "—"
                                 : ""}
                             </td>
@@ -1045,31 +1046,9 @@ export default function OrdersView({ status = "new" }) {
                                     <Search strokeWidth={2} />
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  className="icon-btn"
-                                  title="Inspect product data"
-                                  aria-label={`Inspect product data for ${li.title}`}
-                                  aria-expanded={expandedProduct === rowKey}
-                                  onClick={() => setExpandedProduct(expandedProduct === rowKey ? null : rowKey)}
-                                >
-                                  <Braces strokeWidth={2} />
-                                </button>
                               </div>
                             </td>
                           </tr>
-                          {expandedProduct === rowKey && (
-                            <tr>
-                              <td colSpan={status === "dispatched" ? 10 : 9}>
-                                <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface-2)", padding: "12px" }}>
-                                  <div style={{ color: "var(--text-secondary)", fontSize: "11px", marginBottom: "8px" }}>Fetched product data</div>
-                                  <pre style={{ margin: 0, maxHeight: "320px", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-primary)", fontFamily: "var(--font-geist-mono)", fontSize: "11px", lineHeight: 1.55 }}>
-                                    {JSON.stringify(productData, null, 2)}
-                                  </pre>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
                         </Fragment>
                       );
                     })

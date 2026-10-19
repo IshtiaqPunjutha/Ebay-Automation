@@ -15,7 +15,8 @@ Sends your AliExpress order numbers to the matching eBay order in the dashboard.
 1. In the dashboard, open an order and click the blue **arrow** next to it. The AliExpress
    product opens, and the extension remembers which eBay order it is for.
 2. Buy it on AliExpress as usual.
-3. Open your AliExpress orders. A small blue **Sync** button appears right next to each order's\r\n   **Ref. Number**.
+3. Open your AliExpress orders. A small blue **Sync** button appears right next to each order's
+   **Ref. Number**.
 4. Check the eBay order shown for each one (it is picked by product when it can) and press
    **Sync to dashboard**. The number now shows on the order in the dashboard.
 
