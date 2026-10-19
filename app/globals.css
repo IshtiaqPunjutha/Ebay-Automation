@@ -380,6 +380,32 @@ body,
   opacity: 0.75;
 }
 
+/* Expandable parent item (Orders) with an indented sub-menu */
+.nav-parent .nav-chevron {
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.nav-parent .nav-chevron.open {
+  transform: rotate(0deg);
+}
+
+.nav-parent.parent-active {
+  color: var(--text-primary);
+}
+
+.nav-sub {
+  margin: 2px 0 2px 17px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
 .nav-soon {
   margin-left: auto;
   font-size: 10px;
@@ -916,6 +942,46 @@ a.list-row:hover,
   background: var(--surface);
   color: var(--text-primary);
   box-shadow: var(--shadow-xs);
+}
+
+/* Pagination bar under a table */
+.pager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pager-size select {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.pager-nav {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pager-page {
+  min-width: 90px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .table-meta {

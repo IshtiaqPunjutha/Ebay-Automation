@@ -19,7 +19,8 @@ function crumbsFor(pathname, store) {
   if (store) {
     const base = [{ label: "Stores", href: "/stores" }, { label: store.label || "Store", href: `/stores/${store.id}` }];
     if (pathname.endsWith("/sheet")) return [...base, { label: "Sheet mapping" }];
-    return [...base, { label: "Orders" }];
+    if (pathname.endsWith("/dispatched")) return [...base, { label: "Orders" }, { label: "Dispatched" }];
+    return [...base, { label: "Orders" }, { label: "New orders" }];
   }
   return [{ label: "Dashboard" }];
 }
