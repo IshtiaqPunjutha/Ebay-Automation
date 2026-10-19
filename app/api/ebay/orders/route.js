@@ -80,6 +80,11 @@ export async function GET(request) {
       );
     }
     console.error(`Error fetching orders for store ${storeId}:`, err);
-    return NextResponse.json({ orders: [], error: "Failed to fetch orders" }, { status: 500 });
+    // Include eBay's own reason (first part only) so a failure can be diagnosed from the screen.
+    const detail = String(err?.message || "").slice(0, 200);
+    return NextResponse.json(
+      { orders: [], error: detail ? `Failed to fetch orders. ${detail}` : "Failed to fetch orders" },
+      { status: 500 }
+    );
   }
 }
