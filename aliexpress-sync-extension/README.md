@@ -21,12 +21,13 @@ Sends your AliExpress order numbers to the matching eBay order in the dashboard.
 
 You do not have to use the arrow: the extension asks the dashboard which eBay orders still need a number, so it also works when the dashboard and AliExpress are in different browsers (install the extension, with its token, in the browser where AliExpress is).
 
-If a number is not detected, type it into the box at the bottom of the panel and press Enter.
-
 ## Notes
 
-- The panel looks for the "Ref. Number: 3077062172300812" shown on each AliExpress order (also "Order ID" and `?orderId=` in the address).
-  AliExpress changes its pages from time to time; if numbers stop being found, that detection
-  (`lib.js`) is the place to adjust.
-- The token only lets the extension add AliExpress order numbers and list your store names.
-  Create a new token in the dashboard at any time to cut off an old one.
+- The Sync button is placed next to the "Ref. Number: 3077062172300812" shown on each AliExpress
+  order (also "Order ID" and `?orderId=` in the address). AliExpress changes its pages from time
+  to time; if the button stops appearing, that detection (`lib.js`) is the place to adjust.
+- The extension must be installed, with its token, in the browser where AliExpress is open.
+  Settings and the arrow's memory are kept per browser.
+- The token only lets the extension list your stores and unshipped orders (without buyer
+  addresses) and add AliExpress order numbers. Create a new token in the dashboard at any time to
+  cut off an old one.
