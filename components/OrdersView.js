@@ -15,6 +15,91 @@ function isUrl(value) {
   return /^https?:\/\/\S+$/i.test(String(value || "").trim());
 }
 
+// eBay sends carrier codes in whatever form the seller typed (ROYALMAIL, Royal Mail, evri ...).
+const CARRIER_NAMES = {
+  royalmail: "Royal Mail",
+  royalmailgroup: "Royal Mail",
+  inpost: "InPost",
+  evri: "Evri",
+  hermes: "Evri",
+  hermesuk: "Evri",
+  dpd: "DPD",
+  dpduk: "DPD",
+  dhl: "DHL",
+  ups: "UPS",
+  fedex: "FedEx",
+  parcelforce: "Parcelforce",
+  yodel: "Yodel",
+  amazon: "Amazon Logistics",
+  other: "Other",
+};
+
+function carrierName(code) {
+  if (!code) return "Unknown";
+  const key = String(code).toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (CARRIER_NAMES[key]) return CARRIER_NAMES[key];
+  return String(code)
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function daysSince(dateValue) {
+  const time = dateValue ? new Date(dateValue).getTime() : NaN;
+  if (!Number.isFinite(time)) return null;
+  return Math.max(0, Math.floor((Date.now() - time) / 86400000));
+}
+
+function agoLabel(days) {
+  if (days == null) return "";
+  if (days === 0) return "today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
+// Tracking number(s), carrier and shipped date of a dispatched order.
+// The link opens 17TRACK, which understands any carrier from the number alone.
+function TrackingCell({ shipments }) {
+  if (!shipments || shipments.length === 0) {
+    return <span className="item-meta">No tracking</span>;
+  }
+  return (
+    <div className="tracking-list">
+      {shipments.map((s, i) => {
+        const days = daysSince(s.shippedDate);
+        return (
+          <div key={s.fulfillmentId || i} className="tracking-item">
+            <div className="tracking-carrier">{carrierName(s.carrier)}</div>
+            {s.trackingNumber ? (
+              <div className="phone-line">
+                <span className="mono" style={{ color: "var(--text-primary)" }}>{s.trackingNumber}</span>
+                <CopyButton text={s.trackingNumber} label="Copy tracking number" />
+                <a
+                  className="icon-btn copy-icon"
+                  href={`https://t.17track.net/en#nums=${encodeURIComponent(s.trackingNumber)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Track this parcel"
+                  aria-label="Track this parcel"
+                >
+                  <ArrowUpRight strokeWidth={2} />
+                </a>
+              </div>
+            ) : (
+              <div className="item-meta">No tracking number</div>
+            )}
+            {s.shippedDate && (
+              <div className="item-meta">
+                Shipped {new Date(s.shippedDate).toLocaleDateString()} · {agoLabel(days)}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Opens the product's AliExpress page. The first link (the column next to the
 // eBay link in the sheet) is the main one; extra links sit behind a "+N" menu.
 function AliExpressOpen({ links }) {
@@ -205,6 +290,8 @@ export default function OrdersView({ status = "new" }) {
   const [imageSearchPending, setImageSearchPending] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [carrierFilter, setCarrierFilter] = useState("all");
+  const [ageFilter, setAgeFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
@@ -371,13 +458,40 @@ export default function OrdersView({ status = "new" }) {
     statusFilter === "all"
       ? orders
       : orders.filter((order) => (statusFilter === "in_progress") === (order.fulfillmentStatus === "IN_PROGRESS"));
+
+  // Dispatched tab: carriers present on this page, and the carrier / "shipped how long ago" filters.
+  const carriersOnPage = [...new Set(orders.flatMap((o) => (o.shipments || []).map((s) => carrierName(s.carrier))))]
+    .filter(Boolean)
+    .sort();
+  const shipmentFiltered =
+    status !== "dispatched"
+      ? statusOrders
+      : statusOrders.filter((order) => {
+          const shipments = order.shipments || [];
+          if (carrierFilter !== "all" && !shipments.some((s) => carrierName(s.carrier) === carrierFilter)) return false;
+          if (ageFilter !== "all") {
+            const days = Math.min(...shipments.map((s) => daysSince(s.shippedDate)).filter((d) => d != null), Infinity);
+            if (!Number.isFinite(days)) return false;
+            if (ageFilter === "recent" && days > 3) return false;
+            if (ageFilter === "week" && (days <= 3 || days > 7)) return false;
+            if (ageFilter === "old" && days <= 7) return false;
+          }
+          return true;
+        });
+
   const visibleOrders = needle
-    ? statusOrders.filter((order) =>
-        [order.orderId, order.buyerUsername, order.shipTo?.fullName, ...order.lineItems.flatMap((li) => [li.title, li.sku])]
+    ? shipmentFiltered.filter((order) =>
+        [
+          order.orderId,
+          order.buyerUsername,
+          order.shipTo?.fullName,
+          ...(order.shipments || []).map((s) => s.trackingNumber),
+          ...order.lineItems.flatMap((li) => [li.title, li.sku]),
+        ]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(needle))
       )
-    : statusOrders;
+    : shipmentFiltered;
   const totalItems = visibleOrders.reduce((sum, order) => sum + (order.itemCount || 0), 0);
   const totalValue = sumByCurrency(visibleOrders.map((o) => [o.currency, o.orderTotal]));
   const earnedOrders = visibleOrders.filter((o) => o.earnings);
@@ -491,6 +605,30 @@ export default function OrdersView({ status = "new" }) {
                 aria-label="Search orders on this page"
               />
             </div>
+            {status === "dispatched" && (
+              <>
+                <label className="filter-select">
+                  Carrier
+                  <select value={carrierFilter} onChange={(e) => setCarrierFilter(e.target.value)} aria-label="Filter by carrier">
+                    <option value="all">All carriers</option>
+                    {carriersOnPage.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="filter-select">
+                  Shipped
+                  <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)} aria-label="Filter by time since shipped">
+                    <option value="all">Any time</option>
+                    <option value="recent">Last 3 days</option>
+                    <option value="week">4 to 7 days ago</option>
+                    <option value="old">Over 7 days ago</option>
+                  </select>
+                </label>
+              </>
+            )}
             {status === "new" && (
               <div className="segmented" role="group" aria-label="Filter by status">
                 {[
@@ -533,6 +671,7 @@ export default function OrdersView({ status = "new" }) {
                     <th className="num">Total</th>
                     <th className="num">Earnings</th>
                     <th>Ship to</th>
+                    {status === "dispatched" && <th>Tracking</th>}
                     <th>Status</th>
                     <th></th>
                   </tr>
@@ -626,6 +765,11 @@ export default function OrdersView({ status = "new" }) {
                                 </>
                               )}
                             </td>
+                            {status === "dispatched" && (
+                              <td style={{ minWidth: "190px" }}>
+                                {idx === 0 && <TrackingCell shipments={order.shipments} />}
+                              </td>
+                            )}
                             <td>{idx === 0 && <StatusBadge status={order.fulfillmentStatus} />}</td>
                             <td>
                               <div className="row-actions">
@@ -667,7 +811,7 @@ export default function OrdersView({ status = "new" }) {
                           </tr>
                           {expandedProduct === rowKey && (
                             <tr>
-                              <td colSpan={8}>
+                              <td colSpan={status === "dispatched" ? 9 : 8}>
                                 <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface-2)", padding: "12px" }}>
                                   <div style={{ color: "var(--text-secondary)", fontSize: "11px", marginBottom: "8px" }}>Fetched product data</div>
                                   <pre style={{ margin: 0, maxHeight: "320px", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-primary)", fontFamily: "var(--font-geist-mono)", fontSize: "11px", lineHeight: 1.55 }}>
