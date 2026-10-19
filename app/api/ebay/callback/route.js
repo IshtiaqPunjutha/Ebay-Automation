@@ -4,6 +4,9 @@ import { saveEbayStore, slugifyStoreId } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 import crypto from "crypto";
 
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
+
 // Step 4 of the OAuth flow: eBay redirects here with ?code=... after the
 // seller approves access. We exchange that code for real tokens, figure out
 // which eBay account we just connected (so we can label it), save it as its

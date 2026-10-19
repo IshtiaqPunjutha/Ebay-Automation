@@ -10,6 +10,9 @@ import {
   refreshAccessToken,
 } from "@/lib/ebay";
 
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
+
 export async function GET(request) {
   const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!userId) {

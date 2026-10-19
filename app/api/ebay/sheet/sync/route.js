@@ -17,6 +17,9 @@ import {
 } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
+
 export const dynamic = "force-dynamic";
 // Sweeping every top-level category takes a few seconds.
 export const maxDuration = 60;

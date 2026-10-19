@@ -5,6 +5,9 @@ import { createUser } from "@/lib/users";
 import { getLegacyEbayStoreCount, migrateLegacyEbayStores } from "@/lib/store";
 import { timingSafeEqual } from "node:crypto";
 
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
+
 export async function POST(request) {
   let body;
   try {

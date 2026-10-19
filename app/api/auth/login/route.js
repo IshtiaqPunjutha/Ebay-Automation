@@ -4,6 +4,9 @@ import { verifyPassword } from "@/lib/password";
 import { getUserByEmail } from "@/lib/users";
 import { resumeLegacyEbayStoreMigration } from "@/lib/store";
 
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
+
 export async function POST(request) {
   let body;
   try {

@@ -14,6 +14,9 @@ import {
 } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
+
 const PAGE_SIZES = [10, 25, 50, 100];
 
 // GET /api/ebay/orders?store=<storeId>&status=new|dispatched&page=1&pageSize=25

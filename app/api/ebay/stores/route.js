@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { listEbayStores } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request) {

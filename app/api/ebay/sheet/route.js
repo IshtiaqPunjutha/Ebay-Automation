@@ -3,6 +3,8 @@ import { getEbayStore, getStoreSheet, saveStoreSheet } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+// Redis (KV) calls go over fetch; never let Next.js cache their answers.
+export const fetchCache = "force-no-store";
 
 const MAX_ROWS = 5000;
 const MAX_CELL = 2000;
