@@ -53,8 +53,12 @@ export default function Sidebar({ collapsed, store, onNavigate }) {
         </div>
       </div>
 
+      {/* One keyed wrapper per mode: switching between the workspace menu and a
+          store's menu remounts the card and the nav together, so a stale store
+          card can never be left behind. */}
+      <div className="sidebar-body" key={store ? `store-${store.id}` : "workspace"}>
       {store && (
-        <div className="store-card" key={store.id}>
+        <div className="store-card">
           <Link href="/stores" className="store-card-back" onClick={onNavigate}>
             <ChevronLeft strokeWidth={2} />
             All stores
@@ -64,7 +68,7 @@ export default function Sidebar({ collapsed, store, onNavigate }) {
         </div>
       )}
 
-      <nav className={`sidebar-nav${store ? " slide-in" : ""}`} key={store ? store.id : "workspace"}>
+      <nav className={`sidebar-nav${store ? " slide-in" : ""}`}>
         {groups.map((group) => (
           <div key={group.label} className="sidebar-group">
             <div className="sidebar-section-label">{group.label}</div>
@@ -97,6 +101,7 @@ export default function Sidebar({ collapsed, store, onNavigate }) {
           </div>
         ))}
       </nav>
+      </div>
 
       <div className="sidebar-footer">
         <AccountMenu collapsed={collapsed} />
