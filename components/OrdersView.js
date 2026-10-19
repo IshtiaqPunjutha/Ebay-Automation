@@ -378,6 +378,49 @@ export default function OrdersView({ status = "new" }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [carrierFilter, setCarrierFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
+  const [deliveryFilter, setDeliveryFilter] = useState("all");
+
+  // Orders the seller has marked as delivered (eBay does not report delivery to sellers).
+  const [deliveries, setDeliveries] = useState({});
+
+  async function loadDeliveries() {
+    try {
+      const res = await fetch(`/api/ebay/delivery?store=${encodeURIComponent(storeId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setDeliveries(data.marks || {});
+    } catch (e) {
+      // Orders just show as not delivered if the marks cannot be read.
+    }
+  }
+
+  useEffect(() => {
+    if (storeId && status === "dispatched") loadDeliveries();
+  }, [storeId, status]);
+
+  async function setDelivered(orderIds, delivered) {
+    const before = deliveries;
+    // Show the change straight away; put it back if saving fails.
+    setDeliveries((prev) => {
+      const next = { ...prev };
+      for (const id of orderIds) {
+        if (delivered) next[id] = { at: Date.now() };
+        else delete next[id];
+      }
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/ebay/delivery?store=${encodeURIComponent(storeId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds, delivered }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save.");
+    } catch (err) {
+      setDeliveries(before);
+      setError(err.message || "Could not save the delivery status.");
+    }
+  }
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
@@ -598,6 +641,8 @@ export default function OrdersView({ status = "new" }) {
       : statusOrders.filter((order) => {
           const shipments = order.shipments || [];
           if (carrierFilter !== "all" && !shipments.some((s) => carrierName(s.carrier) === carrierFilter)) return false;
+          if (deliveryFilter === "delivered" && !deliveries[order.orderId]) return false;
+          if (deliveryFilter === "transit" && deliveries[order.orderId]) return false;
           if (ageFilter !== "all") {
             const days = Math.min(...shipments.map((s) => daysSince(s.shippedDate)).filter((d) => d != null), Infinity);
             if (!Number.isFinite(days)) return false;
@@ -622,6 +667,25 @@ export default function OrdersView({ status = "new" }) {
           .some((value) => String(value).toLowerCase().includes(needle))
       )
     : shipmentFiltered;
+  // Tracking numbers of the orders shown that are not yet delivered; 17TRACK takes up to 40 at once.
+  const trackableNumbers = [
+    ...new Set(
+      visibleOrders
+        .filter((o) => !deliveries[o.orderId])
+        .flatMap((o) => (o.shipments || []).map((s) => s.trackingNumber))
+        .filter(Boolean)
+    ),
+  ].slice(0, 40);
+
+  function trackAllOnPage() {
+    if (trackableNumbers.length === 0) return;
+    window.open(
+      `https://t.17track.net/en#nums=${trackableNumbers.map(encodeURIComponent).join(",")}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
   const totalItems = visibleOrders.reduce((sum, order) => sum + (order.itemCount || 0), 0);
   const totalValue = sumByCurrency(visibleOrders.map((o) => [o.currency, o.orderTotal]));
   const earnedOrders = visibleOrders.filter((o) => o.earnings);
@@ -758,6 +822,24 @@ export default function OrdersView({ status = "new" }) {
                     <option value="old">Over 7 days ago</option>
                   </select>
                 </label>
+                <label className="filter-select">
+                  Delivery
+                  <select value={deliveryFilter} onChange={(e) => setDeliveryFilter(e.target.value)} aria-label="Filter by delivery">
+                    <option value="all">All</option>
+                    <option value="transit">Not delivered</option>
+                    <option value="delivered">Delivered</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={trackAllOnPage}
+                  disabled={trackableNumbers.length === 0}
+                  title="Open every undelivered tracking number on this page in 17TRACK (free website)"
+                >
+                  <Truck strokeWidth={2} />
+                  Track all ({trackableNumbers.length})
+                </button>
               </>
             )}
             {status === "new" && (
@@ -911,7 +993,29 @@ export default function OrdersView({ status = "new" }) {
                                 {idx === 0 && <TrackingCell shipments={order.shipments} />}
                               </td>
                             )}
-                            <td>{idx === 0 && <StatusBadge status={order.fulfillmentStatus} />}</td>
+                            <td>
+                              {idx === 0 && (
+                                <div className="status-cell">
+                                  {status === "dispatched" && deliveries[order.orderId] ? (
+                                    <span className="badge badge-success">
+                                      <Check strokeWidth={2.5} />
+                                      Delivered
+                                    </span>
+                                  ) : (
+                                    <StatusBadge status={order.fulfillmentStatus} />
+                                  )}
+                                  {status === "dispatched" && (
+                                    <button
+                                      type="button"
+                                      className="link-button"
+                                      onClick={() => setDelivered([order.orderId], !deliveries[order.orderId])}
+                                    >
+                                      {deliveries[order.orderId] ? "Undo" : "Mark delivered"}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
                             <td>
                               <div className="row-actions">
                                 <AliExpressOpen

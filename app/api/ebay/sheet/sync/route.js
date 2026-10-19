@@ -70,12 +70,16 @@ export async function POST(request) {
     const known = new Set(rows.map((row) => row.itemId).filter(Boolean));
 
     let added = 0;
+    let imagesFilled = 0;
     for (const listing of listings) {
       if (known.has(listing.itemId)) {
         // Fill in the title and image for rows that were pasted or fetched without them.
         const existing = rows.find((row) => row.itemId === listing.itemId);
         if (existing && !existing.title) existing.title = listing.title;
-        if (existing && !existing.imageUrl && listing.imageUrl) existing.imageUrl = listing.imageUrl;
+        if (existing && !existing.imageUrl && listing.imageUrl) {
+          existing.imageUrl = listing.imageUrl;
+          imagesFilled += 1;
+        }
         continue;
       }
       if (rows.length >= MAX_ROWS) break;
@@ -99,6 +103,7 @@ export async function POST(request) {
       rows: saved.rows,
       aliColumns: saved.aliColumns,
       added,
+      imagesFilled,
       found: listings.length,
       seller,
     });

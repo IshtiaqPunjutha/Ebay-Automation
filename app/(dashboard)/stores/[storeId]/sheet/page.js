@@ -137,6 +137,8 @@ export default function SheetMappingPage() {
   const dirtyRef = useRef(false);
   const timerRef = useRef(null);
   const tableRef = useRef(null);
+  const autoFillRef = useRef(false);
+  const fetchListingsRef = useRef(null);
 
   const columns = buildColumns(aliColumns);
 
@@ -184,10 +186,24 @@ export default function SheetMappingPage() {
         if (!res.ok) throw new Error(data.error || "Could not load the sheet.");
         if (cancelled) return;
         applySheet(data);
+        // Rows saved before the Image column existed have no picture. Fetch the
+        // listings once per browser session to fill them in, without being asked.
+        const missingImages = (data.rows || []).some((r) => r.ebayLink && !r.imageUrl);
+        let alreadyTried = false;
+        try {
+          alreadyTried = sessionStorage.getItem(`sheet-images-${storeId}`) === "1";
+          if (missingImages && !alreadyTried) sessionStorage.setItem(`sheet-images-${storeId}`, "1");
+        } catch (e) {}
+        if (missingImages && !alreadyTried) autoFillRef.current = true;
       } catch (err) {
         if (!cancelled) setError(err.message || "Could not load the sheet.");
       }
       if (!cancelled) setLoading(false);
+      if (!cancelled && autoFillRef.current) {
+        autoFillRef.current = false;
+        setSyncMessage("Loading product images…");
+        fetchListingsRef.current?.();
+      }
     })();
     return () => {
       cancelled = true;
@@ -241,16 +257,21 @@ export default function SheetMappingPage() {
       if (!res.ok) throw new Error(data.error || "Could not fetch listings.");
       applySheet(data);
       setSaveState("saved");
+      const imageNote = data.imagesFilled > 0 ? ` Loaded ${data.imagesFilled} product image${data.imagesFilled === 1 ? "" : "s"}.` : "";
       setSyncMessage(
         data.added > 0
-          ? `Added ${data.added} new listing${data.added === 1 ? "" : "s"} (${data.found} active on eBay).`
-          : `Nothing new. All ${data.found} active listings are already in the sheet.`
+          ? `Added ${data.added} new listing${data.added === 1 ? "" : "s"} (${data.found} active on eBay).${imageNote}`
+          : data.imagesFilled > 0
+            ? `Loaded ${data.imagesFilled} product image${data.imagesFilled === 1 ? "" : "s"}. No new listings.`
+            : `Nothing new. All ${data.found} active listings are already in the sheet.`
       );
     } catch (err) {
       setError(err.message || "Could not fetch listings.");
     }
     setSyncing(false);
   }
+
+  fetchListingsRef.current = fetchListings;
 
   function updateCell(rowIndex, column, value) {
     const next = rowsRef.current.map((row, i) => (i === rowIndex ? column.set(row, value) : row));
