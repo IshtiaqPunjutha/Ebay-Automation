@@ -131,6 +131,9 @@ function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
                 >
                   <ArrowUpRight strokeWidth={2} />
                 </a>
+                {track.delivered && (
+                  <span className="badge badge-success" title="AliExpress says this parcel was delivered">Delivered</span>
+                )}
                 {track.carrierName ? (
                   <span className="badge badge-success" title="Delivery carrier shown by AliExpress">{track.carrierName}</span>
                 ) : (

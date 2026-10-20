@@ -167,10 +167,17 @@
     // parcel has reached it, so it can be empty on the first reading.
     const serviceNode = document.querySelector('[class*="logistic-info-v2--carrierTitle"]');
     const carrierName = (document.querySelector('[class*="logistic-info-v2--carrierValue"]')?.textContent || "").replace(/\s+/g, " ").trim();
+    // The newest event is the first node: its title ("In transit", "Delivered") and description
+    // ("Package delivered.") say where the parcel is. Only a clear "Delivered" counts.
+    const latestTitle = firstLine(document.querySelector('[class*="logistic-info-v2--nodeTitle"]'));
+    const latestDesc = firstLine(document.querySelector('[class*="logistic-info-v2--nodeDesc"]'));
+    const delivered = /^delivered\b/i.test(latestTitle) || /^(package|parcel) delivered/i.test(latestDesc);
     return {
       aliOrderId,
       trackingNumber,
       carrierName,
+      delivered,
+      deliveredTime: delivered ? firstLine(document.querySelector('[class*="logistic-info-v2--nodeTime"]')) : "",
       carrierText: (serviceNode ? firstLine(serviceNode) : firstLine(document.querySelector('[class*="logistic-info-v2--carrier"]'))).replace(/[:：]\s*$/, ""),
       statusText: firstLine(document.querySelector('[class*="logistic-info-v2--trackWrap"]')),
       estimateText: firstLine(document.querySelector('[class*="arrival-time"]')),
@@ -190,7 +197,7 @@
       if (document.visibilityState === "visible") {
         toast(
           res?.ok
-            ? `Tracking ${data.trackingNumber}${data.carrierName ? ` (${data.carrierName})` : ", carrier not shown yet,"} saved to the dashboard.`
+            ? `Tracking ${data.trackingNumber}${data.carrierName ? ` (${data.carrierName})` : ", carrier not shown yet,"} saved to the dashboard${data.delivered ? ". Delivered." : "."}`
             : res?.error || "Could not save the tracking.",
           !res?.ok
         );

@@ -90,6 +90,7 @@ async function reconcileSynced(force = false) {
 // The order list shows a "Track status" link for orders that have tracking. For orders that are
 // synced to the dashboard, that link is opened in a background tab, the tracking page's content
 // script reads the number, and it is uploaded to the dashboard (shown under the order's number).
+const TRACK_REFRESH_MS = 8 * 60 * 60 * 1000; // a parcel whose carrier is known is looked at again after 8 hours, until it says Delivered
 const TRACK_RETRY_MS = 2.5 * 60 * 60 * 1000; // try an order again after 2.5 hours if nothing was read (a little under the automatic check's 3 hours)
 const TRACK_TAB_TIMEOUT_MS = 30 * 1000;
 const trackQueue = [];
@@ -108,9 +109,10 @@ async function patchTrackState(aliOrderId, patch) {
   await chrome.storage.local.set({ trackState: all });
 }
 
-// Tracking counts as done once the number is in the dashboard AND the delivery carrier is known.
-// Until the carrier appears on AliExpress's page the order is read again (see TRACK_RETRY_MS).
-const trackingDone = (state) => Boolean(state?.uploadedAt && state?.carrierName);
+// An order is finished once its number is in the dashboard, the carrier is known and AliExpress says
+// Delivered. Before that it is read again: after 2.5 hours while the carrier is missing, after 8 hours
+// while it is on its way (see enqueueTracking).
+const trackingDone = (state) => Boolean(state?.uploadedAt && state?.carrierName && state?.delivered);
 
 async function uploadTracking(data) {
   const result = await api("/api/ext/tracking", { method: "POST", body: JSON.stringify(data) });
@@ -118,9 +120,11 @@ async function uploadTracking(data) {
     await patchTrackState(data.aliOrderId, {
       trackingNumber: data.trackingNumber,
       carrierName: data.carrierName || "",
+      delivered: Boolean(data.delivered),
       uploadedAt: Date.now(),
       attemptAt: Date.now(), // so an order still waiting for its carrier is looked at again after a while, not at once
       lastError: data.carrierName ? "" : "Tracking saved; waiting for AliExpress to show the delivery carrier.",
+      deliveredAt: data.delivered ? Date.now() : undefined,
     });
   } else {
     await patchTrackState(data.aliOrderId, { attemptAt: Date.now(), lastError: result.error });
@@ -180,7 +184,8 @@ async function enqueueTracking(aliOrderId, url) {
   if (AliSyncLib.trackingOrderIdFromUrl(url) !== String(aliOrderId)) return { ok: false, error: "Not an AliExpress tracking link" };
   const state = (await getTrackState())[aliOrderId] || {};
   if (trackingDone(state)) return { ok: true, skipped: "already uploaded" };
-  if (state.attemptAt && Date.now() - state.attemptAt < TRACK_RETRY_MS) return { ok: true, skipped: "tried recently" };
+  const waitMs = state.carrierName ? TRACK_REFRESH_MS : TRACK_RETRY_MS;
+  if (state.attemptAt && Date.now() - state.attemptAt < waitMs) return { ok: true, skipped: "tried recently" };
   if (trackActive.has(String(aliOrderId))) return { ok: true, skipped: "already queued or open" };
   trackActive.add(String(aliOrderId));
   trackQueue.push({ aliOrderId: String(aliOrderId), url });
@@ -347,6 +352,8 @@ async function handle(message, sender) {
         aliOrderId,
         trackingNumber: number,
         carrierName: String(message.carrierName || "").slice(0, 60),
+        // Only ever sent when AliExpress says Delivered, so a later odd reading can not undo it.
+        ...(message.delivered === true ? { delivered: true, deliveredTime: String(message.deliveredTime || "").slice(0, 60) } : {}),
         carrierText: message.carrierText || "",
         statusText: message.statusText || "",
         estimateText: message.estimateText || "",

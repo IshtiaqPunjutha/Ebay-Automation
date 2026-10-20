@@ -184,3 +184,10 @@ the orders that still have no AliExpress number, the tab title shows the total, 
 **New** tag that disappears once its AliExpress number is synced. The bell in the top bar turns the sound on or off.
 This runs in the browser tab: with the dashboard closed nothing is checked (a Vercel cron cannot play a sound, and the
 free plan only runs it once a day).
+
+### Delivery status from AliExpress (extension 1.5.0)
+
+The extension already opens each synced order's AliExpress tracking page; it now also reads the newest event. A parcel
+that is not delivered is read again about every 8 hours (while Chrome is open and logged in to AliExpress). When the page
+says **Delivered**, the dashboard stores it and marks the eBay order delivered; an eBay order with several AliExpress
+parcels is marked only when all of them are delivered. The manual "Mark delivered" button stays as the fallback.

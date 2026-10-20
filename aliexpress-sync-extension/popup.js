@@ -90,7 +90,8 @@ async function renderTracking() {
     const detail = document.createElement("div");
     const done = item.uploadedAt && item.carrierName;
     detail.className = done ? "ok" : "muted";
-    if (done) detail.textContent = `✓ ${item.trackingNumber} · ${item.carrierName} sent ${ago(item.uploadedAt)}`;
+    if (done && item.delivered) detail.textContent = `✓ Delivered · ${item.trackingNumber} · ${item.carrierName}`;
+    else if (done) detail.textContent = `✓ ${item.trackingNumber} · ${item.carrierName} on its way (checked ${ago(item.uploadedAt)})`;
     else if (item.uploadedAt) detail.textContent = `${item.trackingNumber} saved; waiting for the carrier name on AliExpress`;
     else detail.textContent = `Not read ${item.attemptAt ? ago(item.attemptAt) : ""}${item.lastError ? `: ${item.lastError}` : ""}`.trim();
     li.append(head, detail);

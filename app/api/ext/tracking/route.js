@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrderRefs, listEbayStores, setTracking } from "@/lib/store";
+import { getDeliveries, getOrderRefs, getTracking, listEbayStores, setDeliveries, setTracking } from "@/lib/store";
 import { authFromBearer, canUseStore } from "@/lib/exttoken";
 import { cleanCarrierName } from "@/lib/shipping";
 
@@ -14,7 +14,7 @@ const TRACKING_PATTERN = /^[A-Za-z0-9]{6,40}$/;
 const text = (value, max = 120) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 // POST /api/ext/tracking   (Authorization: Bearer <extension token>)
-//   body: { aliOrderId, trackingNumber, carrierText?, statusText?, estimateText? }
+//   body: { aliOrderId, trackingNumber, carrierName?, carrierText?, statusText?, estimateText?, delivered?: true }
 // Saves the tracking the extension read from AliExpress for an order that is already synced to an
 // eBay order. It finds that eBay order from the AliExpress number, so the extension never has to
 // know which store or order it belongs to.
@@ -46,8 +46,24 @@ export async function POST(request) {
         carrierText: text(body.carrierText),
         statusText: text(body.statusText),
         estimateText: text(body.estimateText),
+        // Sent only when AliExpress's tracking page says Delivered.
+        ...(body.delivered === true ? { delivered: true, deliveredText: text(body.deliveredTime, 60) } : {}),
       });
-      return NextResponse.json({ ok: true, storeId: store.storeId, orderId, tracking: saved });
+
+      // The eBay order counts as delivered once EVERY AliExpress parcel of it is delivered.
+      let markedDelivered = false;
+      if (saved.delivered) {
+        const all = await getTracking(auth.userId, store.storeId);
+        const parcels = refs[orderId].aliOrderIds || [];
+        if (parcels.length > 0 && parcels.every((id) => all[id]?.delivered)) {
+          const already = await getDeliveries(auth.userId, store.storeId);
+          if (!already[orderId]) {
+            await setDeliveries(auth.userId, store.storeId, [orderId], true, { source: "aliexpress" });
+            markedDelivered = true;
+          }
+        }
+      }
+      return NextResponse.json({ ok: true, storeId: store.storeId, orderId, tracking: saved, markedDelivered });
     }
     return NextResponse.json({ error: "That AliExpress order is not synced to an eBay order yet." }, { status: 404 });
   } catch (err) {
