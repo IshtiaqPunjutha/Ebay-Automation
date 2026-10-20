@@ -112,13 +112,28 @@ function PinGate({ hasPin, onUnlocked }) {
   );
 }
 
-function StoreCard({ entry, onSavePercent, single }) {
+function StoreCard({ entry, onSavePercent, single, month }) {
   const { report, partnership } = entry;
   const [draft, setDraft] = useState(String(partnership.vaPercent));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [showOrders, setShowOrders] = useState(false);
   const [showDays, setShowDays] = useState(Boolean(single));
+  const [check, setCheck] = useState(null); // result of "Check against eBay"
+  const [checking, setChecking] = useState(false);
+
+  async function runCheck() {
+    setChecking(true);
+    setCheck(null);
+    try {
+      const res = await fetch(`/api/finance/verify?store=${encodeURIComponent(entry.storeId)}&month=${encodeURIComponent(month)}`);
+      const body = await res.json();
+      setCheck(res.ok ? body : { error: body.error || "Could not check." });
+    } catch {
+      setCheck({ error: "Could not check." });
+    }
+    setChecking(false);
+  }
 
   useEffect(() => setDraft(String(partnership.vaPercent)), [partnership.vaPercent]);
   const percent = Number(draft);
@@ -196,6 +211,41 @@ function StoreCard({ entry, onSavePercent, single }) {
               Other charges are: {report.otherKinds.map((k) => `${k.kind} ${money(k.amount, report.currency)}`).join(", ")}
             </p>
           )}
+
+          {(report.sharedCosts > 0 || report.otherCurrencyRows > 0 || report.failedRows > 0 || report.daysReconcile === false) && (
+            <p className="text-muted" style={{ fontSize: 12.5 }}>
+              {report.sharedCosts > 0 && `${report.sharedCosts} AliExpress order(s) are linked to more than one eBay order, so their cost is split between them. `}
+              {report.otherCurrencyRows > 0 && `${report.otherCurrencyRows} eBay transaction(s) in another currency were left out. `}
+              {report.failedRows > 0 && `${report.failedRows} failed eBay transaction(s) were ignored. `}
+              {report.daysReconcile === false && "The days do not add up to the month total: some money has no date. "}
+            </p>
+          )}
+
+          <div style={{ marginBottom: 8 }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={runCheck} disabled={checking}>
+              {checking ? "Checking every order…" : "Check against eBay"}
+            </button>{" "}
+            {check?.error && <span className="text-error">{check.error}</span>}
+            {check && !check.error && check.mismatches.length === 0 && (
+              <span className="text-muted" role="status">
+                All {check.checked} orders match the orders page to the penny.
+                {check.unavailable > 0 && ` (${check.unavailable} could not be read from eBay.)`}
+                {check.skipped > 0 && ` (${check.skipped} more were not checked.)`}
+              </span>
+            )}
+            {check && !check.error && check.mismatches.length > 0 && (
+              <div className="text-error" style={{ fontSize: 12.5, marginTop: 6 }} role="status">
+                {check.mismatches.length} order(s) differ (this month's figure vs the orders page, which also counts refunds or fees from other months):
+                <ul style={{ margin: "4px 0 0 16px" }}>
+                  {check.mismatches.map((m) => (
+                    <li key={m.orderId} className="mono">
+                      {m.orderId}: {money(m.finance, report.currency)} vs {money(m.ordersPage, report.currency)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           {(report.missingCost > 0 || report.unconvertedCosts > 0) && (
             <p className="text-error" style={{ fontSize: 12.5 }}>
@@ -416,7 +466,7 @@ export default function FinanceView({ storeId }) {
       )}
 
       {data?.stores.map((entry) => (
-        <StoreCard key={entry.storeId} entry={entry} onSavePercent={savePercent} single={Boolean(storeId)} />
+        <StoreCard key={entry.storeId} entry={entry} onSavePercent={savePercent} single={Boolean(storeId)} month={month} />
       ))}
       {data && data.stores.length === 0 && <p className="text-muted">No store connected yet.</p>}
     </div>
