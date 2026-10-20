@@ -2142,3 +2142,59 @@ a.list-row:hover,
   font-weight: 600;
   letter-spacing: 0.02em;
 }
+
+/* Orders pages: the page numbers as small chips beside the title, so the table gets the room */
+.compact-header {
+  margin-bottom: 10px;
+  align-items: flex-start;
+}
+
+.compact-header .page-title {
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.header-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.stat-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stat-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  min-width: 78px;
+}
+
+.stat-chip-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.stat-chip-value {
+  font-family: var(--font-geist-mono);
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.stat-chip-value.good {
+  color: var(--success);
+}

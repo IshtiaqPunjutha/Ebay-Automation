@@ -889,12 +889,7 @@ export default function OrdersView({ status = "new" }) {
 
   return (
     <div>
-      <Link href="/stores" className="back-link">
-        <ArrowLeft size={13} strokeWidth={2} />
-        All stores
-      </Link>
-
-      <div className="page-header">
+      <div className="page-header compact-header">
         <div>
           <h1 className="page-title">{copy.title}</h1>
           <p className="page-subtitle">
@@ -902,7 +897,23 @@ export default function OrdersView({ status = "new" }) {
             {copy.subtitle}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="header-tools">
+          {(loading || orders.length > 0) && (
+            <div className="stat-chips">
+              <div className="stat-chip" title={loading ? "" : `${totalItems} item${totalItems === 1 ? "" : "s"} on this page`}>
+                <span className="stat-chip-label">{copy.countLabel}</span>
+                <span className="stat-chip-value">{loading ? "…" : total}</span>
+              </div>
+              <div className="stat-chip" title="This page, before eBay fees">
+                <span className="stat-chip-label">Order value</span>
+                <span className="stat-chip-value">{loading ? "…" : totalValue}</span>
+              </div>
+              <div className="stat-chip" title={loading ? "" : `After fees. ${earnedOrders.length} of ${visibleOrders.length} orders posted`}>
+                <span className="stat-chip-label">Earnings</span>
+                <span className="stat-chip-value good">{loading ? "…" : totalEarnings}</span>
+              </div>
+            </div>
+          )}
           {status === "new" && (
             <button
               type="button"
@@ -949,26 +960,6 @@ export default function OrdersView({ status = "new" }) {
         <p className={imageSearchStatus.startsWith("Could not") || imageSearchStatus.startsWith("Image clipboard") ? "text-error" : "text-muted"} role="status">
           {imageSearchStatus}
         </p>
-      )}
-
-      {(loading || orders.length > 0) && (
-        <div className="stat-grid">
-          <div className="stat-card">
-            <div className="stat-label">{copy.countLabel}</div>
-            {loading ? <div className="skeleton" style={{ height: "30px", width: "48px" }} /> : <div className="stat-value">{total}</div>}
-            <div className="stat-hint">{loading ? " " : `${totalItems} item${totalItems === 1 ? "" : "s"} on this page`}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Order value</div>
-            {loading ? <div className="skeleton" style={{ height: "30px", width: "110px" }} /> : <div className="stat-value" style={{ fontSize: "20px" }}>{totalValue}</div>}
-            <div className="stat-hint">This page · before eBay fees</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Earnings</div>
-            {loading ? <div className="skeleton" style={{ height: "30px", width: "110px" }} /> : <div className="stat-value" style={{ fontSize: "20px" }}>{totalEarnings}</div>}
-            <div className="stat-hint good">{loading ? " " : `After fees · ${earnedOrders.length} of ${visibleOrders.length} orders posted`}</div>
-          </div>
-        </div>
       )}
 
       {loading && orders.length === 0 && (
