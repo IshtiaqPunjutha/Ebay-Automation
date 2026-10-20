@@ -2231,4 +2231,5 @@ a.list-row:hover,
   display: flex;
   gap: 6px;
   margin-top: 6px;
+  justify-content: flex-start;
 }
