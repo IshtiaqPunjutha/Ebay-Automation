@@ -238,10 +238,15 @@
   // What was paid for this order: the "Total: £ 2.04" shown in its card.
   function readCardTotal(node) {
     let box = node;
-    for (let depth = 0; box && depth < 12; depth += 1, box = box.parentElement) {
+    for (let depth = 0; box && depth < 16; depth += 1, box = box.parentElement) {
       if (lib.orderIdsFromText(box.innerText || "").length > 1) return null;
-      const total = box.querySelector('[class*="order-item-content-opt-price-total"]');
+      const total = box.querySelector('[class*="price-total"]');
       if (total) return lib.parseMoney(total.textContent);
+      // Fallback if AliExpress renames the class: the smallest element reading "Total: £ 1.39".
+      for (const candidate of box.querySelectorAll("span, div, p")) {
+        const text = candidate.textContent || "";
+        if (text.length < 40 && /^\s*Total\s*:?\s*[£€$]/i.test(text)) return lib.parseMoney(text);
+      }
     }
     return null;
   }
@@ -251,6 +256,10 @@
   function sendCosts(node, id) {
     if (!state.synced[id]) return;
     const money = readCardTotal(node);
+    if (!money && !costsSent.has(`none:${id}`)) {
+      costsSent.set(`none:${id}`, true);
+      console.log(`[AliExpress Sync] no "Total" amount found for order ${id}`);
+    }
     if (!money || !money.currency || costsSent.get(id) === `${money.amount}${money.currency}`) return;
     const key = `${money.amount}${money.currency}`;
     costsSent.set(id, key);
