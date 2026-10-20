@@ -92,7 +92,16 @@ function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
         return (
           <div key={id} className="ali-order-item">
             <div className="ali-order-chip">
-              <span className="mono">{id}</span>
+              {/* One click on the number opens that order on AliExpress. */}
+              <a
+                className="mono ali-order-link"
+                href={`https://www.aliexpress.com/p/order/detail.html?orderId=${encodeURIComponent(id)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open this order on AliExpress"
+              >
+                {id}
+              </a>
               <CopyButton text={id} label="Copy AliExpress order number" />
               <button
                 type="button"
@@ -1167,7 +1176,8 @@ export default function OrdersView({ status = "new" }) {
                               {idx === 0 && (
                                 <AliOrderCell
                                   ids={orderRefs[order.orderId]?.aliOrderIds || []}
-                                  tracking={tracking}
+                                  // Once an order is dispatched, eBay's own Tracking column already shows it.
+                                  tracking={status === "new" ? tracking : {}}
                                   onSave={(ids) => saveOrderRef(order.orderId, ids)}
                                   disabled={savingRef}
                                 />

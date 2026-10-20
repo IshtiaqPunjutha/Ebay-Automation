@@ -1336,6 +1336,15 @@ a.list-row:hover,
   color: var(--text-primary);
 }
 
+.ali-order-link {
+  text-decoration: none;
+}
+
+.ali-order-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .chip-remove {
   width: 18px;
   height: 18px;
