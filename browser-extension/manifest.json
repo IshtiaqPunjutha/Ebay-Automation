@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "eBay to AliExpress Image Search",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Send an eBay order image to AliExpress visual search.",
   "host_permissions": [
     "https://i.ebayimg.com/*"

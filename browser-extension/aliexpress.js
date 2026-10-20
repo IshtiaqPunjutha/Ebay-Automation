@@ -77,7 +77,11 @@
     });
     if (!imageResponse?.ok) throw new Error(imageResponse?.error || "Could not load the eBay image.");
 
-    const cameraButton = await waitForElement('img[alt="Search by image"]');
+    // AliExpress moved the label from the picture's alt text to the button around it (alt is empty now);
+    // the older markup is kept as a fallback.
+    const cameraButton = await waitForElement(
+      '[aria-label="Search by image"], [class*="picture-search-btn"], img[alt="Search by image"]'
+    );
     cameraButton.click();
 
     const fileInput = await waitForElement('input[type="file"][accept*=".jpg"]');
