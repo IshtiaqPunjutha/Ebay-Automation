@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  fetchItemProduct,
   fetchRootCategoryIds,
   fetchSellerListings,
   getApplicationAccessToken,
@@ -97,6 +98,23 @@ export async function POST(request) {
       added += 1;
     }
 
+    // Rows whose listing the search did not return (a very new or hidden listing, one pasted by hand) still
+    // get their title and picture, by asking eBay for the item itself.
+    const foundIds = new Set(listings.map((l) => l.itemId));
+    const toLookUp = rows.filter((row) => row.itemId && !foundIds.has(row.itemId) && (!row.title || !row.imageUrl)).slice(0, 40);
+    let looked = 0;
+    for (let i = 0; i < toLookUp.length; i += 5) {
+      await Promise.all(
+        toLookUp.slice(i, i + 5).map(async (row) => {
+          const product = await fetchItemProduct(row.itemId, appToken.accessToken);
+          if (!product) return;
+          if (!row.title && product.title) row.title = product.title;
+          if (!row.imageUrl && product.imageUrl && /^https:\/\/i\.ebayimg\.com\//.test(product.imageUrl)) row.imageUrl = product.imageUrl;
+          looked += 1;
+        })
+      );
+    }
+
     const saved = await saveStoreSheet(userId, storeId, rows, sheet.aliColumns);
     return NextResponse.json({
       ok: true,
@@ -104,6 +122,7 @@ export async function POST(request) {
       aliColumns: saved.aliColumns,
       added,
       imagesFilled,
+      looked,
       found: listings.length,
       seller,
     });

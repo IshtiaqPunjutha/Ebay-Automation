@@ -165,8 +165,8 @@ export default function SheetMappingPage() {
     [storeId]
   );
 
-  function applySheet(data) {
-    const loaded = padRows(data.rows || []);
+  function applySheet(data, minRows = MIN_ROWS) {
+    const loaded = padRows(data.rows || [], minRows);
     rowsRef.current = loaded;
     setRows(loaded);
     const cols = Math.min(MAX_ALI_COLUMNS, Math.max(1, data.aliColumns || 1));
@@ -256,15 +256,17 @@ export default function SheetMappingPage() {
       const res = await fetch(`/api/ebay/sheet/sync?store=${encodeURIComponent(storeId)}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not fetch listings.");
-      applySheet(data);
+      // Keep the blank rows that were on screen (the server never stores empty rows).
+      applySheet(data, Math.max(MIN_ROWS, rowsRef.current.length));
       setSaveState("saved");
       const imageNote = data.imagesFilled > 0 ? ` Loaded ${data.imagesFilled} product image${data.imagesFilled === 1 ? "" : "s"}.` : "";
+      const lookedNote = data.looked > 0 ? ` Filled in ${data.looked} row${data.looked === 1 ? "" : "s"} from their eBay link.` : "";
       setSyncMessage(
         data.added > 0
-          ? `Added ${data.added} new listing${data.added === 1 ? "" : "s"} (${data.found} active on eBay).${imageNote}`
+          ? `Added ${data.added} new listing${data.added === 1 ? "" : "s"} (${data.found} active on eBay).${imageNote}${lookedNote}`
           : data.imagesFilled > 0
-            ? `Loaded ${data.imagesFilled} product image${data.imagesFilled === 1 ? "" : "s"}. No new listings.`
-            : `Nothing new. All ${data.found} active listings are already in the sheet.`
+            ? `Loaded ${data.imagesFilled} product image${data.imagesFilled === 1 ? "" : "s"}. No new listings.${lookedNote}`
+            : `Nothing new. All ${data.found} listings that the eBay search returns are already in the sheet.${lookedNote} If one of your listings is missing, paste its eBay link into a row and fetch again.`
       );
     } catch (err) {
       setError(err.message || "Could not fetch listings.");
