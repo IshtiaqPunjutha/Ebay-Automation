@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
 
-// GET /api/finance/report?month=2026-10   (needs the finance PIN)
+// GET /api/finance/report?month=2026-10[&store=<id>]   (needs the finance PIN)
 // -> { month, stores: [{ storeId, label, partnership, report | error }] } for every connected store.
 export async function GET(request) {
   const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
@@ -21,7 +21,9 @@ export async function GET(request) {
   const range = monthRange(month);
   if (!range) return NextResponse.json({ error: "month must look like 2026-10" }, { status: 400 });
 
-  const stores = await listEbayStores(userId);
+  // &store=<id> limits the report to one store (the store's own finance page).
+  const only = new URL(request.url).searchParams.get("store");
+  const stores = (await listEbayStores(userId)).filter((s) => !only || s.storeId === only);
   const out = await Promise.all(
     stores.map(async (s) => {
       const partnership = await getPartnership(userId, s.storeId);
@@ -37,7 +39,7 @@ export async function GET(request) {
           getOrderRefs(userId, s.storeId),
           getAliCosts(userId, s.storeId),
         ]);
-        return { ...base, report: summarizeMonth(transactions, refs, costs, partnership.vaPercent) };
+        return { ...base, report: summarizeMonth(transactions, refs, costs, partnership.vaPercent, month) };
       } catch (err) {
         console.error(`Finance report failed for store ${s.storeId}:`, err);
         return { ...base, error: err.code === "invalid_grant" ? "This eBay connection needs to be authorized again." : "Could not read this store's transactions from eBay." };

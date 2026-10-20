@@ -15,7 +15,7 @@ function workspaceGroups() {
       items: [
         { href: "/", label: "Dashboard", icon: LayoutGrid },
         { href: "/stores", label: "Stores", icon: Store },
-        { href: "/finance", label: "Finance", icon: Landmark },
+        { href: "/finance", label: "Finance (all stores)", icon: Landmark },
       ],
     },
     {
@@ -39,6 +39,7 @@ function storeGroups(storeId) {
           ],
         },
         { href: `/stores/${storeId}/sheet`, label: "Sheet mapping", icon: Table2 },
+        { href: `/stores/${storeId}/finance`, label: "Finance", icon: Landmark },
       ],
     },
     {
