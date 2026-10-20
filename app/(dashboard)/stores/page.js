@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Store, CircleAlert } from "lucide-react";
+import { Plus, Store, CircleAlert, Search } from "lucide-react";
+import { Pager, paginate } from "@/components/Pager";
 
 export default function StoresPage() {
   const router = useRouter();
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   async function loadStores() {
     setLoading(true);
@@ -43,6 +47,10 @@ export default function StoresPage() {
     });
     setStores((prev) => prev.filter((s) => s.storeId !== storeId));
   }
+
+  const needle = query.trim().toLowerCase();
+  const matching = needle ? stores.filter((s) => `${s.label} ${s.storeId}`.toLowerCase().includes(needle)) : stores;
+  const paged = paginate(matching, page, pageSize);
 
   return (
     <div>
@@ -91,8 +99,29 @@ export default function StoresPage() {
       )}
 
       {!loading && stores.length > 0 && (
+        <div className="toolbar" style={{ marginBottom: 12 }}>
+          <div className="search-field">
+            <Search strokeWidth={2} />
+            <input
+              className="input"
+              type="search"
+              placeholder="Search stores"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Search stores"
+            />
+          </div>
+        </div>
+      )}
+
+      {!loading && stores.length > 0 && matching.length === 0 && <p className="text-muted">No store matches "{query}".</p>}
+
+      {!loading && matching.length > 0 && (
         <div className="panel">
-          {stores.map((s) => (
+          {paged.items.map((s) => (
             <div
               key={s.storeId}
               className="list-row clickable"
@@ -128,6 +157,19 @@ export default function StoresPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {!loading && matching.length > 0 && (
+        <Pager
+          info={paged}
+          pageSize={pageSize}
+          onPageSize={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          onPage={setPage}
+          label="Stores per page"
+        />
       )}
     </div>
   );

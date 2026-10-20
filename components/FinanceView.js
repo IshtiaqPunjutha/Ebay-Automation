@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, CircleAlert, Copy, Landmark, LoaderCircle, Lock } from "lucide-react";
 import { CostCell, ExpensesPanel, PaymentsPanel } from "./FinanceExtras";
+import { Pager, paginate } from "./Pager";
 
 const money = (value, currency) => {
   const n = Number(value) || 0;
@@ -119,6 +120,9 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [showOrders, setShowOrders] = useState(false);
+  const [orderQuery, setOrderQuery] = useState("");
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(25);
   const [showDays, setShowDays] = useState(Boolean(single));
   const [check, setCheck] = useState(null); // result of "Check against eBay"
   const [checking, setChecking] = useState(false);
@@ -320,6 +324,26 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             </div>
           )}
           {showOrders && (
+            <div style={{ marginTop: 8 }}>
+              <input
+                className="input"
+                type="search"
+                placeholder="Search by eBay or AliExpress order number"
+                value={orderQuery}
+                onChange={(e) => {
+                  setOrderQuery(e.target.value);
+                  setOrderPage(1);
+                }}
+                aria-label="Search orders"
+                style={{ width: "100%", maxWidth: 360, marginBottom: 8 }}
+              />
+            </div>
+          )}
+          {showOrders && (() => {
+            const needle = orderQuery.trim().toLowerCase();
+            const rows = needle ? report.orders.filter((o) => `${o.orderId} ${(o.aliOrderIds || []).join(" ")}`.toLowerCase().includes(needle)) : report.orders;
+            const paged = paginate(rows, orderPage, orderPageSize);
+            return (
             <div className="review-scroll" style={{ marginTop: 8 }}>
               <table className="review-table">
                 <thead>
@@ -332,7 +356,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {report.orders.map((o) => (
+                  {paged.items.map((o) => (
                     <tr key={o.orderId}>
                       <td className="mono">{o.date ? new Date(o.date + "T00:00:00Z").toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" }) : "–"}</td>
                       <td>
@@ -350,8 +374,20 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                   ))}
                 </tbody>
               </table>
+              {rows.length === 0 && <p className="text-muted">No order matches.</p>}
+              <Pager
+                info={paged}
+                pageSize={orderPageSize}
+                onPageSize={(size) => {
+                  setOrderPageSize(size);
+                  setOrderPage(1);
+                }}
+                onPage={setOrderPage}
+                label="Orders per page"
+              />
             </div>
-          )}
+            );
+          })()}
           <ExpensesPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
           <PaymentsPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
         </>
