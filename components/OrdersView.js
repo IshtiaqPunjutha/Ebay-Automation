@@ -904,6 +904,18 @@ export default function OrdersView({ status = "new" }) {
                 <span className="stat-chip-label">{copy.countLabel}</span>
                 <span className="stat-chip-value">{loading ? "…" : total}</span>
               </div>
+              {status === "dispatched" && !loading && (
+                <>
+                  <div className="stat-chip" title="Orders marked delivered (all pages)">
+                    <span className="stat-chip-label">Delivered</span>
+                    <span className="stat-chip-value good">{Object.keys(deliveries).length}</span>
+                  </div>
+                  <div className="stat-chip" title="Dispatched but not yet delivered (all pages)">
+                    <span className="stat-chip-label">On the way</span>
+                    <span className="stat-chip-value">{Math.max(0, total - Object.keys(deliveries).length)}</span>
+                  </div>
+                </>
+              )}
               <div className="stat-chip" title="This page, before eBay fees">
                 <span className="stat-chip-label">Order value</span>
                 <span className="stat-chip-value">{loading ? "…" : totalValue}</span>
