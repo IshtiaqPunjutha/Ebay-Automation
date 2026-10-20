@@ -699,6 +699,10 @@ export default function OrdersView({ status = "new" }) {
         return;
       }
       setOrders(data.orders || []);
+      if (data.staleSent?.length) {
+        // The shipment was removed on eBay: drop the old "Tracking sent" tag too.
+        setSentTracking((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !data.staleSent.includes(id))));
+      }
       setTotal(data.total || 0);
       setReconnectRequired(Boolean(data.reconnectRequired));
       if (data.error) setError(data.error);
@@ -1172,12 +1176,13 @@ export default function OrdersView({ status = "new" }) {
                     )}
                     <th>Item</th>
                     <th>Order</th>
+                    {status === "dispatched" && <th>Status</th>}
                     <th className="num">Qty</th>
                     <th className="num">Total{singleCurrency ? ` (${singleCurrency})` : ""}</th>
                     <th className="num">Earnings{singleCurrency ? ` (${singleCurrency})` : ""}</th>
                     <th>Ship to</th>
                     <th>{status === "dispatched" ? "AliExpress order & tracking" : "AliExpress order"}</th>
-                    <th>Status</th>
+                    {status === "new" && <th>Status</th>}
                     {status === "new" && <th></th>}
                   </tr>
                 </thead>
@@ -1201,6 +1206,42 @@ export default function OrdersView({ status = "new" }) {
                       const phone = order.shipTo.phone;
                       // Everything a courier label needs, one item per line.
                       const fullBlock = [recipient, ...addressParts, phone].filter(Boolean).join("\n");
+                      // The status column sits right after Order on the dispatched tab, so it stays in view on a small screen.
+                      const statusCell = (
+                          <td>
+                            {idx === 0 && (
+                              <div className="status-cell">
+                                {status === "dispatched" && deliveries[order.orderId] ? (
+                                  <span className="badge badge-success">
+                                    <Check strokeWidth={2.5} />
+                                    Delivered
+                                  </span>
+                                ) : (
+                                  <StatusBadge status={order.fulfillmentStatus} />
+                                )}
+                                {status === "new" && !sentTracking[order.orderId] && <DispatchBy shipBy={order.shipBy} />}
+                                {status === "new" && sentTracking[order.orderId] && (
+                                  <span
+                                    className="badge badge-info"
+                                    title={`Tracking ${sentTracking[order.orderId].trackingNumber} (${sentTracking[order.orderId].carrier}) was sent to eBay${sentTracking[order.orderId].auto ? " automatically" : ""}`}
+                                  >
+                                    <Truck strokeWidth={2.5} />
+                                    Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {status === "dispatched" && (
+                                  <button
+                                    type="button"
+                                    className="link-button"
+                                    onClick={() => setDelivered([order.orderId], !deliveries[order.orderId])}
+                                  >
+                                    {deliveries[order.orderId] ? "Undo" : "Mark delivered"}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                      );
                       return (
                         <Fragment key={rowKey}>
                           <tr className={idx > 0 ? "order-cont" : undefined}>
@@ -1251,6 +1292,7 @@ export default function OrdersView({ status = "new" }) {
                                 </>
                               )}
                             </td>
+                            {status === "dispatched" && statusCell}
                             <td className="num mono">{li.quantity}</td>
                             <td className="num mono">
                               {idx === 0 && order.orderTotal != null
@@ -1300,39 +1342,7 @@ export default function OrdersView({ status = "new" }) {
                               {/* A dispatched order shows eBay's tracking under its AliExpress number, in the same column. */}
                               {status === "dispatched" && idx === 0 && <TrackingCell shipments={order.shipments} />}
                             </td>
-                            <td>
-                              {idx === 0 && (
-                                <div className="status-cell">
-                                  {status === "dispatched" && deliveries[order.orderId] ? (
-                                    <span className="badge badge-success">
-                                      <Check strokeWidth={2.5} />
-                                      Delivered
-                                    </span>
-                                  ) : (
-                                    <StatusBadge status={order.fulfillmentStatus} />
-                                  )}
-                                  {status === "new" && !sentTracking[order.orderId] && <DispatchBy shipBy={order.shipBy} />}
-                                  {status === "new" && sentTracking[order.orderId] && (
-                                    <span
-                                      className="badge badge-info"
-                                      title={`Tracking ${sentTracking[order.orderId].trackingNumber} (${sentTracking[order.orderId].carrier}) was sent to eBay${sentTracking[order.orderId].auto ? " automatically" : ""}`}
-                                    >
-                                      <Truck strokeWidth={2.5} />
-                                      Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}
-                                    </span>
-                                  )}
-                                  {status === "dispatched" && (
-                                    <button
-                                      type="button"
-                                      className="link-button"
-                                      onClick={() => setDelivered([order.orderId], !deliveries[order.orderId])}
-                                    >
-                                      {deliveries[order.orderId] ? "Undo" : "Mark delivered"}
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </td>
+                            {status === "new" && statusCell}
                             {status === "new" && (
                             <td>
                               <div className="row-actions">

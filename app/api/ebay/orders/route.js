@@ -8,6 +8,8 @@ import {
 } from "@/lib/ebay";
 import {
   getEbayStore,
+  getShipSent,
+  unmarkShipSent,
   updateStoreAccessToken,
   getCachedAppToken,
   saveAppToken,
@@ -72,7 +74,18 @@ export async function GET(request) {
       offset: (page - 1) * pageSize,
       orderId,
     });
-    return NextResponse.json({ orders, total, page, pageSize });
+    // eBay is the truth: an order that is still NOT_STARTED has no shipment on eBay, so a "tracking sent" record for it
+    // is out of date (the shipment was removed on eBay). Forget it, so the order is a normal new order again.
+    // (Records younger than 10 minutes are kept: eBay may not have caught up with a send that just happened.)
+    let staleSent = [];
+    if (status === "new" && !orderId) {
+      const sent = await getShipSent(userId, storeId);
+      staleSent = orders
+        .filter((o) => o.fulfillmentStatus === "NOT_STARTED" && sent[o.orderId] && Date.now() - (sent[o.orderId].at || 0) > 10 * 60 * 1000)
+        .map((o) => o.orderId);
+      if (staleSent.length) await unmarkShipSent(userId, storeId, staleSent);
+    }
+    return NextResponse.json({ orders, total, page, pageSize, staleSent });
   } catch (err) {
     if (err.code === "invalid_grant") {
       return NextResponse.json(
