@@ -154,3 +154,5 @@ store has its own split ("VA gets 40%", owner gets the rest), saved with **Save 
 - The first visit asks you to create a 4 to 8 digit PIN; after that the PIN is asked on every visit. The
   page locks again when you leave it (and after 15 minutes). Five wrong tries lock it for 5 minutes.
 - Costs in a different currency than the earnings are not converted; they are reported and left out.
+
+_Finance page: redeploy trigger._
