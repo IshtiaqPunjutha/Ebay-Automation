@@ -206,13 +206,23 @@ async function enqueueTracking(aliOrderId, url) {
 const ORDERS_URL = "https://www.aliexpress.com/p/order/index.html";
 const AUTO_EVERY_MIN = 180;
 const AUTO_MIN_WAIT_MS = globalThis.__fastTest ? 1500 : 60 * 1000; // time for the list to load and the readings to start
-const AUTO_MAX_WAIT_MS = globalThis.__fastTest ? 9000 : 5 * 60 * 1000;
+const AUTO_MAX_WAIT_MS = globalThis.__fastTest ? 9000 : 8 * 60 * 1000;
 const AUTO_RECENT_MS = 45 * 24 * 60 * 60 * 1000; // orders synced longer ago are not worth looking at
 let autoRunning = false;
+let autoTabId = null; // the orders-list tab the automatic check opened
+let autoScanDone = false; // set when that tab has scrolled through the list and read every cost it could
 
 async function autoSettingOn() {
   const settings = await getSettings();
   return settings.autoTrack !== false; // on unless switched off
+}
+
+// Synced orders (recent ones) whose AliExpress cost has not reached the dashboard yet.
+async function hasOrdersMissingCost() {
+  const { synced, costSent } = await chrome.storage.local.get(["synced", "costSent"]);
+  return Object.entries(synced || {}).some(
+    ([id, value]) => !(costSent || {})[id] && (!value.at || Date.now() - value.at < AUTO_RECENT_MS)
+  );
 }
 
 // Is there a synced order whose tracking has not been read yet?
@@ -229,7 +239,7 @@ async function autoCheck({ force = false } = {}) {
   const settings = await getSettings();
   if (!AliSyncLib.originOf(settings.dashboardUrl) || !settings.token) return { ok: false, error: "Add your dashboard address and token first." };
   if (!force && !(await autoSettingOn())) return { ok: true, skipped: "switched off" };
-  if (!force && !(await hasOrdersWaitingForTracking())) return { ok: true, skipped: "nothing waiting" };
+  if (!force && !(await hasOrdersWaitingForTracking()) && !(await hasOrdersMissingCost())) return { ok: true, skipped: "nothing waiting" };
 
   autoRunning = true;
   let tab = null;
@@ -251,12 +261,14 @@ async function autoCheck({ force = false } = {}) {
         await enqueueTracking(id, trackingUrlFor(id));
       }
     }
+    autoScanDone = false;
     tab = await chrome.tabs.create({ url: ORDERS_URL, active: false });
+    autoTabId = tab.id;
     const started = Date.now();
     while (Date.now() - started < AUTO_MAX_WAIT_MS) {
       await new Promise((r) => setTimeout(r, globalThis.__fastTest ? 300 : 2000));
-      // Done once the list has had time to load and no reading is running or waiting.
-      if (Date.now() - started >= AUTO_MIN_WAIT_MS && !trackRunning && trackQueue.length === 0) break;
+      // Done once the list has been scrolled through and read, and no tracking reading is running or waiting.
+      if (Date.now() - started >= AUTO_MIN_WAIT_MS && autoScanDone && !trackRunning && trackQueue.length === 0) break;
     }
     return { ok: true, checked: true };
   } catch (err) {
@@ -404,7 +416,9 @@ async function handle(message, sender) {
       const trackState = await getTrackState();
       const tracked = {};
       for (const [id, value] of Object.entries(trackState)) if (trackingDone(value)) tracked[id] = true;
+      const { costSent } = await chrome.storage.local.get("costSent");
       return {
+        costed: costSent || {},
         ok: true,
         configured: Boolean(AliSyncLib.originOf(settings.dashboardUrl) && settings.token),
         pending: await getPending(),
@@ -433,11 +447,22 @@ async function handle(message, sender) {
     case "COST": {
       const amount = Number(message.amount);
       if (!Number.isFinite(amount) || !/^[A-Z]{3}$/.test(message.currency || "")) return { ok: false, error: "Bad amount" };
-      return await api("/api/ext/cost", {
+      const aliOrderId = String(message.aliOrderId || "");
+      const key = `${amount}${message.currency}`;
+      const { costSent } = await chrome.storage.local.get("costSent");
+      if ((costSent || {})[aliOrderId] === key) return { ok: true, skipped: "already sent" };
+      const result = await api("/api/ext/cost", {
         method: "POST",
-        body: JSON.stringify({ aliOrderId: String(message.aliOrderId || ""), amount, currency: message.currency }),
+        body: JSON.stringify({ aliOrderId, amount, currency: message.currency }),
       });
+      if (result.ok) await chrome.storage.local.set({ costSent: { ...(costSent || {}), [aliOrderId]: key } });
+      return result;
     }
+    case "IS_AUTO_TAB":
+      return { ok: true, auto: sender?.tab?.id !== undefined && sender.tab.id === autoTabId };
+    case "AUTO_SCAN_DONE":
+      if (sender?.tab?.id === autoTabId) autoScanDone = true;
+      return { ok: true };
     case "SYNC": {
       const result = await api("/api/ext/orderref", {
         method: "POST",

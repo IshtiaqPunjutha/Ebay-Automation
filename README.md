@@ -191,3 +191,9 @@ The extension already opens each synced order's AliExpress tracking page; it now
 that is not delivered is read again in every automatic check, about every 3 hours (while Chrome is open and logged in to AliExpress). When the page
 says **Delivered**, the dashboard stores it and marks the eBay order delivered; an eBay order with several AliExpress
 parcels is marked only when all of them are delivered. The manual "Mark delivered" button stays as the fallback.
+
+### Costs read automatically (extension 1.6.0)
+
+The automatic check (every 3 hours, or **Check now**) opens the AliExpress orders list in a background tab and now
+scrolls down it (and presses "view more" buttons) until every synced order has its cost in the dashboard, the list
+stops growing, or about 80 steps have passed. A cost that was already sent is not sent again. Sync stays manual.

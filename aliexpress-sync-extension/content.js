@@ -119,7 +119,7 @@
   const BTN_STYLE =
     "margin-left:10px;padding:2px 10px;border:none;border-radius:12px;background:#2a78d6;color:#fff;font:600 12px/18px Arial,sans-serif;cursor:pointer;vertical-align:middle;white-space:nowrap;";
 
-  const state = { pending: [], synced: {}, tracked: {}, configured: true };
+  const state = { pending: [], synced: {}, tracked: {}, costed: {}, configured: true };
 
   async function refreshState() {
     const res = await send({ type: "GET_STATE" });
@@ -127,6 +127,7 @@
       state.pending = res.pending;
       state.synced = res.synced;
       state.tracked = res.tracked || {};
+      state.costed = res.costed || {};
       state.configured = res.configured;
     }
   }
@@ -292,6 +293,44 @@
       console.log(`[AliExpress Sync] ${summary}`);
     }
   }
+
+  // In the tab the automatic check opened (and only there), scroll down the orders list so every
+  // synced order gets read, not just the first page. Stops when every synced order has its cost, when the
+  // list stops growing, or after a while.
+  const FORTY_FIVE_DAYS = 45 * 24 * 60 * 60 * 1000;
+  async function autoScrollForCosts() {
+    const who = await send({ type: "IS_AUTO_TAB" });
+    if (!who?.auto) return;
+    let lastHeight = 0;
+    let stale = 0;
+    for (let round = 0; round < 80 && !dead; round += 1) {
+      await refreshState();
+      scanCosts();
+      await new Promise((r) => setTimeout(r, 700)); // let the costs just sent reach the background
+      await refreshState();
+      const missing = Object.entries(state.synced).filter(
+        ([id, v]) => !state.costed?.[id] && !costsSent.has(id) && (!v.at || Date.now() - v.at < FORTY_FIVE_DAYS)
+      );
+      if (missing.length === 0) break;
+
+      window.scrollTo(0, document.body.scrollHeight);
+      // Some lists load more with a button instead of by scrolling.
+      for (const b of document.querySelectorAll("button, a, div[role=button]")) {
+        if (/^(view|load|show) more( orders)?$/i.test((b.textContent || "").trim()) && isVisibleBox(b)) b.click();
+      }
+      await new Promise((r) => setTimeout(r, 1300));
+      const height = document.body.scrollHeight;
+      stale = height === lastHeight ? stale + 1 : 0;
+      lastHeight = height;
+      if (stale >= 4) break; // the bottom: nothing more loads
+    }
+    send({ type: "AUTO_SCAN_DONE" });
+  }
+
+  const isVisibleBox = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
 
   function paint(button, id) {
     const done = state.synced[id];
@@ -541,8 +580,19 @@
     }, 900);
   }
 
+  // In the automatic check's own tab: wait for the list to appear, then scroll through it. If the tab ended up
+  // somewhere else (a login page, say) it says it is done at once, so the check does not wait for nothing.
+  async function maybeAutoScan() {
+    const who = await send({ type: "IS_AUTO_TAB" });
+    if (!who?.auto) return;
+    await new Promise((r) => setTimeout(r, 6000));
+    if (!onOrderPage() || dead) return send({ type: "AUTO_SCAN_DONE" });
+    await autoScrollForCosts();
+  }
+
   function start() {
     lastHref = location.href;
+    maybeAutoScan().catch(() => {});
     schedule();
     observer = new MutationObserver(() => {
       if (onOrderPage()) schedule();
