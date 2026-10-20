@@ -235,39 +235,42 @@
     return { itemIds: [...found], text };
   }
 
-  // What was paid for this order: the "Total: £ 2.04" shown in its card.
-  function readCardTotal(node) {
-    let box = node;
-    for (let depth = 0; box && depth < 16; depth += 1, box = box.parentElement) {
-      if (lib.orderIdsFromText(box.innerText || "").length > 1) return null;
-      const total = box.querySelector('[class*="price-total"]');
-      if (total) return lib.parseMoney(total.textContent);
-      // Fallback if AliExpress renames the class: the smallest element reading "Total: £ 1.39".
-      for (const candidate of box.querySelectorAll("span, div, p")) {
-        const text = candidate.textContent || "";
-        if (text.length < 40 && /^\s*Total\s*:?\s*[£€$]/i.test(text)) return lib.parseMoney(text);
-      }
-    }
-    return null;
-  }
-
-  // Tell the dashboard what each synced order cost (once per amount), for the finance pages.
+  // What was paid for each order: the "Total: £ 2.04" shown in its card. The scan starts from the
+  // total (not from the Ref. Number): the first ancestor that holds exactly one order number is its card.
   const costsSent = new Map();
-  function sendCosts(node, id) {
-    if (!state.synced[id]) return;
-    const money = readCardTotal(node);
-    if (!money && !costsSent.has(`none:${id}`)) {
-      costsSent.set(`none:${id}`, true);
-      console.log(`[AliExpress Sync] no "Total" amount found for order ${id}`);
+  let lastCostLog = "";
+  function scanCosts() {
+    const totals = document.querySelectorAll('[class*="price-total"]');
+    let found = 0;
+    for (const totalNode of totals) {
+      const money = lib.parseMoney(totalNode.textContent);
+      let id = "";
+      let box = totalNode.parentElement;
+      for (let depth = 0; box && depth < 20; depth += 1, box = box.parentElement) {
+        const ids = lib.orderIdsFromText(box.innerText || "");
+        if (ids.length > 1) break;
+        if (ids.length === 1) {
+          id = ids[0];
+          break;
+        }
+      }
+      if (!money || !money.currency || !id) continue;
+      found += 1;
+      if (!state.synced[id]) continue;
+      const key = `${money.amount}${money.currency}`;
+      if (costsSent.get(id) === key) continue;
+      costsSent.set(id, key);
+      send({ type: "COST", aliOrderId: id, amount: money.amount, currency: money.currency }).then((res) => {
+        // A failed save is tried again on the next scan.
+        if (!res?.ok) costsSent.delete(id);
+        console.log(`[AliExpress Sync] cost ${money.amount} ${money.currency} for ${id}:`, res?.ok ? "saved" : res?.error);
+      });
     }
-    if (!money || !money.currency || costsSent.get(id) === `${money.amount}${money.currency}`) return;
-    const key = `${money.amount}${money.currency}`;
-    costsSent.set(id, key);
-    send({ type: "COST", aliOrderId: id, amount: money.amount, currency: money.currency }).then((res) => {
-      // A failed save is tried again on the next scan.
-      if (!res?.ok) costsSent.delete(id);
-      console.log(`[AliExpress Sync] cost ${money.amount} ${money.currency} for ${id}:`, res?.ok ? "saved" : res?.error);
-    });
+    const summary = `totals on page=${totals.length}, read=${found}`;
+    if (summary !== lastCostLog) {
+      lastCostLog = summary;
+      console.log(`[AliExpress Sync] ${summary}`);
+    }
   }
 
   function paint(button, id) {
@@ -379,7 +382,6 @@
     if (res?.ok) {
       await refreshState();
       paint(button, id);
-      sendCosts(node, id);
       toast(`Synced ${id} to eBay order ${entry.orderId}${entry.buyer ? ` (${entry.buyer})` : ""}.`, false, {
         label: "Undo",
         onClick: async () => {
@@ -457,8 +459,8 @@
     if (!document.body) return;
     // One cheap pass over the page text first; the element search below is only worth it when a number exists.
     if (lib.orderIdsFromText(document.body.innerText).length === 0) return;
+    scanCosts();
     for (const { node, id } of findRefElements()) {
-      sendCosts(node, id);
       const existing = node.querySelector(`[${BTN_ATTR}]`);
       if (existing) {
         if (existing.getAttribute(BTN_ATTR) === id) {
