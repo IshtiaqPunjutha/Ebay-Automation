@@ -2198,3 +2198,30 @@ a.list-row:hover,
 .stat-chip-value.good {
   color: var(--success);
 }
+
+/* "To ship" is red so it stands out; the dispatch-by date under it shows how urgent the order is */
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.dispatch-by {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.dispatch-by span {
+  color: var(--text-tertiary);
+}
+
+.dispatch-by.dispatch-soon {
+  color: var(--warning);
+}
+
+.dispatch-by.dispatch-late,
+.dispatch-by.dispatch-late span {
+  color: var(--danger);
+  font-weight: 600;
+}

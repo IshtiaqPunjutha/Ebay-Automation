@@ -403,10 +403,30 @@ function StatusBadge({ status }) {
     );
   }
   return (
-    <span className="badge badge-warning">
+    <span className="badge badge-danger" title="Not shipped yet">
       <Clock strokeWidth={2.5} />
       To ship
     </span>
+  );
+}
+
+// "Dispatch by Wed 21 Oct" with how close it is. Red when it is today or already late, amber for tomorrow.
+function DispatchBy({ shipBy }) {
+  if (!shipBy) return null;
+  const tz = "Europe/London";
+  const day = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const due = new Date(shipBy);
+  if (Number.isNaN(due.getTime())) return null;
+  const toNumber = (s) => Math.round(new Date(`${s}T00:00:00Z`).getTime() / 86400000);
+  const left = toNumber(day(due)) - toNumber(day(new Date()));
+  const label = due.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz });
+  const when = left < 0 ? `${-left} day${left === -1 ? "" : "s"} late` : left === 0 ? "today" : left === 1 ? "tomorrow" : `in ${left} days`;
+  const tone = left <= 0 ? "dispatch-late" : left === 1 ? "dispatch-soon" : "dispatch-ok";
+  return (
+    <div className={`dispatch-by ${tone}`} title="eBay's dispatch-by date for this order">
+      Dispatch by {label}
+      <span> · {when}</span>
+    </div>
   );
 }
 
@@ -1291,6 +1311,7 @@ export default function OrdersView({ status = "new" }) {
                                   ) : (
                                     <StatusBadge status={order.fulfillmentStatus} />
                                   )}
+                                  {status === "new" && !sentTracking[order.orderId] && <DispatchBy shipBy={order.shipBy} />}
                                   {status === "new" && sentTracking[order.orderId] && (
                                     <span
                                       className="badge badge-info"
