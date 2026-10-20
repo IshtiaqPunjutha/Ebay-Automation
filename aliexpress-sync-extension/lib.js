@@ -133,19 +133,26 @@
     return /^[A-Za-z0-9]{6,40}$/.test(value) ? value : "";
   }
 
-  // "£ 2.04", "Total:£2.04", "US $12.50", "€1,299.00" -> { amount: 2.04, currency: "GBP" }; null if unclear.
+  // "£ 2.04", "Total:£2.04", "US $12.50", "€1,299.00", "GBP 3.10" -> { amount: 2.04, currency: "GBP" }; null if unclear.
+  // Pound signs come in several forms (£, fullwidth, the word GBP), so the currency is found by looking at
+  // whatever non-digit text sits next to the number rather than one exact character.
   function parseMoney(text) {
-    const t = String(text || "").replace(/\s+/g, " ");
-    const symbols = { "£": "GBP", "€": "EUR", "$": "USD" };
-    const m = t.match(/([£€$])\s*([0-9][0-9.,]*)/);
+    const t = String(text || "").replace(/[\s   ]+/g, " ");
+    const m = t.match(/([^\d\s.,:;()-]{1,4})\s*([0-9][0-9.,]*)/) || t.match(/([0-9][0-9.,]*)\s*([^\d\s.,:;()-]{1,4})/);
     if (!m) return null;
-    let n = m[2];
+    const flip = /^[0-9]/.test(m[1]);
+    const symbol = (flip ? m[2] : m[1]).toUpperCase();
+    let n = flip ? m[1] : m[2];
+    let currency = null;
+    if (/[£￡]|GBP/.test(symbol)) currency = "GBP";
+    else if (/[€]|EUR/.test(symbol)) currency = "EUR";
+    else if (/\$|USD/.test(symbol)) currency = "USD";
     // "1,299.00" or "1.299,00": the last separator is the decimal point when two digits follow it.
     const last = Math.max(n.lastIndexOf("."), n.lastIndexOf(","));
     if (last >= 0 && n.length - last - 1 === 2) n = n.slice(0, last).replace(/[.,]/g, "") + "." + n.slice(last + 1);
     else n = n.replace(/[.,]/g, "");
     const amount = Number(n);
-    return Number.isFinite(amount) && amount >= 0 && amount < 1e6 ? { amount, currency: symbols[m[1]] } : null;
+    return currency && Number.isFinite(amount) && amount >= 0 && amount < 1e6 ? { amount, currency } : null;
   }
 
   const api = { parseMoney, trackingOrderIdFromUrl, cleanTrackingNumber, orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, scoreAgainstCard, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };

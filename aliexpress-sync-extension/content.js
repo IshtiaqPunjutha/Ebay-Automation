@@ -254,7 +254,14 @@
           break;
         }
       }
-      if (!money || !money.currency || !id) continue;
+      if (!money || !money.currency || !id) {
+        if (!costsSent.has("diag")) {
+          costsSent.set("diag", true);
+          const codes = [...(totalNode.textContent || "")].map((ch) => ch.charCodeAt(0).toString(16)).join(" ");
+          console.log(`[AliExpress Sync] could not use a total: text=${JSON.stringify(totalNode.textContent)} codes=${codes} parsed=${JSON.stringify(money)} orderId=${id || "none"}`);
+        }
+        continue;
+      }
       found += 1;
       if (!state.synced[id]) continue;
       const key = `${money.amount}${money.currency}`;

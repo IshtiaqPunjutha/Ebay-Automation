@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AliExpress Sync for Order Dashboard",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Sends your AliExpress order numbers to your eBay order dashboard.",
   "permissions": ["storage", "alarms"],
   "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
