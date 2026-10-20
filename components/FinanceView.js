@@ -165,6 +165,12 @@ function StoreCard({ entry, onSavePercent, single }) {
             </div>
           </div>
 
+          {report.otherKinds?.length > 0 && (
+            <p className="text-muted" style={{ fontSize: 12.5 }}>
+              Other charges are: {report.otherKinds.map((k) => `${k.kind} ${money(k.amount, report.currency)}`).join(", ")}
+            </p>
+          )}
+
           {(report.missingCost > 0 || report.unconvertedCosts > 0) && (
             <p className="text-error" style={{ fontSize: 12.5 }}>
               <CircleAlert size={13} style={{ verticalAlign: "-2px" }} />{" "}
