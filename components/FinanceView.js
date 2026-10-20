@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CircleAlert, Landmark, LoaderCircle, Lock } from "lucide-react";
+import Link from "next/link";
+import { Check, CircleAlert, Copy, Landmark, LoaderCircle, Lock } from "lucide-react";
 
 const money = (value, currency) => {
   const n = Number(value) || 0;
@@ -11,6 +12,31 @@ const money = (value, currency) => {
     return n.toFixed(2);
   }
 };
+
+// Small icon button that copies `text` and flashes a check mark.
+function CopyIcon({ text, label }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  const Icon = copied ? Check : Copy;
+  return (
+    <button type="button" className="icon-btn copy-icon" onClick={copy} title={copied ? "Copied" : label} aria-label={label}>
+      <Icon strokeWidth={2} style={copied ? { color: "var(--success)" } : undefined} />
+    </button>
+  );
+}
 
 function thisMonth() {
   const d = new Date();
@@ -247,7 +273,14 @@ function StoreCard({ entry, onSavePercent, single }) {
                 <tbody>
                   {report.orders.map((o) => (
                     <tr key={o.orderId}>
-                      <td className="mono">{o.orderId}</td>
+                      <td>
+                        <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <Link href={`/stores/${entry.storeId}/dispatched?order=${encodeURIComponent(o.orderId)}`} className="link-accent" title="Open this order in the store's orders">
+                            {o.orderId}
+                          </Link>
+                          <CopyIcon text={o.orderId} label="Copy eBay order number" />
+                        </span>
+                      </td>
                       <td>{money(o.net, report.currency)}</td>
                       <td>{o.cost === null ? <span className="text-muted">no cost yet</span> : money(o.cost, report.currency)}</td>
                       <td>{money(o.profit, report.currency)}</td>

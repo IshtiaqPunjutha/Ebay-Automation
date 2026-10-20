@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import ZoomThumb from "./ZoomThumb";
 import SendTrackingDialog from "./SendTrackingDialog";
@@ -411,6 +411,9 @@ export default function OrdersView({ status = "new" }) {
   const copy = COPY[status] || COPY.new;
   const { storeId } = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  // ?order=<id> (from the finance page): show just that order.
+  const [focusOrder, setFocusOrder] = useState("");
   const [storeLabel, setStoreLabel] = useState("");
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -476,6 +479,10 @@ export default function OrdersView({ status = "new" }) {
     try {
       const saved = Number(localStorage.getItem("ordersPageSize"));
       if (PAGE_SIZES.includes(saved)) setPageSize(saved);
+    } catch (e) {}
+    try {
+      const wanted = new URLSearchParams(window.location.search).get("order") || "";
+      if (/^[A-Za-z0-9-]{4,64}$/.test(wanted)) setFocusOrder(wanted);
     } catch (e) {}
     setReady(true);
   }, []);
@@ -637,8 +644,16 @@ export default function OrdersView({ status = "new" }) {
         page: String(page),
         pageSize: String(pageSize),
       });
+      if (focusOrder) params.set("order", focusOrder);
       const res = await fetch(`/api/ebay/orders?${params.toString()}`);
       const data = await res.json();
+      // The finance page does not know whether an order has shipped; move to the tab it is on.
+      const found = focusOrder && data.orders?.[0];
+      if (found && (found.fulfillmentStatus === "FULFILLED") !== (status === "dispatched")) {
+        const other = status === "dispatched" ? `/stores/${storeId}` : `/stores/${storeId}/dispatched`;
+        router.replace(`${other}?order=${encodeURIComponent(focusOrder)}`);
+        return;
+      }
       setOrders(data.orders || []);
       setTotal(data.total || 0);
       setReconnectRequired(Boolean(data.reconnectRequired));
@@ -729,7 +744,7 @@ export default function OrdersView({ status = "new" }) {
   useEffect(() => {
     if (!storeId || !ready) return;
     loadOrders();
-  }, [storeId, ready, status, page, pageSize]);
+  }, [storeId, ready, status, page, pageSize, focusOrder]);
 
   // If orders were shipped meanwhile and the page no longer exists, step back.
   useEffect(() => {
@@ -946,6 +961,23 @@ export default function OrdersView({ status = "new" }) {
             {copy.emptyHint}
           </p>
         </div>
+      )}
+
+      {focusOrder && (
+        <p className="text-muted" style={{ margin: "0 0 12px" }}>
+          Showing only order <span className="mono">{focusOrder}</span>.{" "}
+          <button
+            type="button"
+            className="link-accent"
+            style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }}
+            onClick={() => {
+              setFocusOrder("");
+              router.replace(pathname);
+            }}
+          >
+            Show all orders
+          </button>
+        </p>
       )}
 
       {orders.length > 0 && (
