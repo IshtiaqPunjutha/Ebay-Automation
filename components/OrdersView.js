@@ -1177,8 +1177,8 @@ export default function OrdersView({ status = "new" }) {
                     <th>Item</th>
                     <th>Order</th>
                     {status === "dispatched" && <th>Status</th>}
-                    <th className="num" title={`What the buyer paid, and what you earn after eBay's fees${singleCurrency ? ` (${singleCurrency})` : ""}`}>
-                      Total / Earned
+                    <th className="num" title={`T = Total the buyer paid, E = what you Earn after eBay's fees${singleCurrency ? ` (${singleCurrency})` : ""}`}>
+                      {({ GBP: "£", EUR: "€", USD: "$" })[singleCurrency] || singleCurrency || "£"} (T/E)
                     </th>
                     <th>Ship to</th>
                     <th>{status === "dispatched" ? "AliExpress order & tracking" : "AliExpress order"}</th>
