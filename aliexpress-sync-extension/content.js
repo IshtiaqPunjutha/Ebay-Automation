@@ -162,10 +162,16 @@
     const aliOrderId = lib.trackingOrderIdFromUrl(location.href);
     const trackingNumber = lib.cleanTrackingNumber(document.querySelector('[class*="logistic-info-v2--mailNoValue"]')?.textContent);
     if (!aliOrderId || !trackingNumber) return null;
+    // "AliExpress Selection Premium shipping: InPost": the first part is the shipping service, the
+    // second (…carrierValue…) the local carrier that delivers it. The carrier only appears once the
+    // parcel has reached it, so it can be empty on the first reading.
+    const serviceNode = document.querySelector('[class*="logistic-info-v2--carrierTitle"]');
+    const carrierName = (document.querySelector('[class*="logistic-info-v2--carrierValue"]')?.textContent || "").replace(/\s+/g, " ").trim();
     return {
       aliOrderId,
       trackingNumber,
-      carrierText: firstLine(document.querySelector('[class*="logistic-info-v2--carrier"]')),
+      carrierName,
+      carrierText: (serviceNode ? firstLine(serviceNode) : firstLine(document.querySelector('[class*="logistic-info-v2--carrier"]'))).replace(/[:：]\s*$/, ""),
       statusText: firstLine(document.querySelector('[class*="logistic-info-v2--trackWrap"]')),
       estimateText: firstLine(document.querySelector('[class*="arrival-time"]')),
     };
@@ -182,7 +188,12 @@
       const res = await send({ type: "TRACKING_FOUND", ...data });
       // Only say something if a person is looking at this page (not in our background tab).
       if (document.visibilityState === "visible") {
-        toast(res?.ok ? `Tracking ${data.trackingNumber} saved to the dashboard.` : res?.error || "Could not save the tracking.", !res?.ok);
+        toast(
+          res?.ok
+            ? `Tracking ${data.trackingNumber}${data.carrierName ? ` (${data.carrierName})` : ", carrier not shown yet,"} saved to the dashboard.`
+            : res?.error || "Could not save the tracking.",
+          !res?.ok
+        );
       }
     }, 500);
   }

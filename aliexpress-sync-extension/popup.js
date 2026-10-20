@@ -88,8 +88,10 @@ async function renderTracking() {
     code.textContent = item.aliOrderId;
     head.append(code);
     const detail = document.createElement("div");
-    detail.className = item.uploadedAt ? "ok" : "muted";
-    if (item.uploadedAt) detail.textContent = `✓ ${item.trackingNumber} sent ${ago(item.uploadedAt)}`;
+    const done = item.uploadedAt && item.carrierName;
+    detail.className = done ? "ok" : "muted";
+    if (done) detail.textContent = `✓ ${item.trackingNumber} · ${item.carrierName} sent ${ago(item.uploadedAt)}`;
+    else if (item.uploadedAt) detail.textContent = `${item.trackingNumber} saved; waiting for the carrier name on AliExpress`;
     else detail.textContent = `Not read ${item.attemptAt ? ago(item.attemptAt) : ""}${item.lastError ? `: ${item.lastError}` : ""}`.trim();
     li.append(head, detail);
     ul.append(li);

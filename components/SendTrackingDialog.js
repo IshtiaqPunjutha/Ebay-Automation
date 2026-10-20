@@ -3,32 +3,29 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, CircleAlert, LoaderCircle, Truck, X } from "lucide-react";
-import { CARRIER_CHOICES, CARRIER_PATTERN } from "@/lib/shipping";
+import { CARRIER_CHOICES, CARRIER_PATTERN, carrierChoiceFor } from "@/lib/shipping";
 
 const CUSTOM = "__custom__";
 const BATCH = 20;
-
-function loadSavedCarrier(storeId) {
-  try {
-    return localStorage.getItem(`shipCarrier:${storeId}`) || "Other";
-  } catch (e) {
-    return "Other";
-  }
-}
 
 // The review screen for sending AliExpress tracking to eBay. Nothing is sent until the box at the
 // bottom is ticked and Send is pressed; sending marks each order as shipped on eBay (the buyer is
 // told) and cannot be undone from here.
 //
-// items: [{ orderId, buyer, summary, trackingNumber, serviceText }]
+// items: [{ orderId, buyer, summary, trackingNumber, serviceText, carrierName }]
 export default function SendTrackingDialog({ items: initialItems, storeId, onClose, onFinished }) {
   // The list is fixed when the screen opens: the orders page refreshes behind it after a send
   // (shipped orders drop out of "new"), which must not change what this screen shows.
   const [items] = useState(initialItems);
   const [carriers, setCarriers] = useState(() => {
-    const first = loadSavedCarrier(storeId);
-    const known = CARRIER_CHOICES.includes(first);
-    return Object.fromEntries(items.map((i) => [i.orderId, { choice: known ? first : CUSTOM, custom: known ? "" : first }]));
+    // Each order starts with the carrier AliExpress showed for its parcel.
+    return Object.fromEntries(
+      items.map((i) => {
+        const name = carrierChoiceFor(i.carrierName) || "Other";
+        const known = CARRIER_CHOICES.includes(name);
+        return [i.orderId, { choice: known ? name : CUSTOM, custom: known ? "" : name }];
+      })
+    );
   });
   const [confirmed, setConfirmed] = useState(false);
   const [sending, setSending] = useState(false);
@@ -81,9 +78,6 @@ export default function SendTrackingDialog({ items: initialItems, storeId, onClo
       }
       setResults((prev) => ({ ...prev, ...all }));
     }
-    try {
-      localStorage.setItem(`shipCarrier:${storeId}`, carrierFor(items[0].orderId));
-    } catch (e) {}
     setSending(false);
     setFinished(true);
     const okIds = Object.values(all).filter((r) => r.ok).map((r) => r.orderId);
@@ -111,8 +105,8 @@ export default function SendTrackingDialog({ items: initialItems, storeId, onClo
         </p>
 
         {!finished && (
-          <label className="filter-select" style={{ marginBottom: 8 }}>
-            Carrier for all
+          <label className="filter-select" style={{ marginBottom: 8 }} title="Each line already has the carrier AliExpress showed. Only use this to change them all.">
+            Change all carriers
             <select defaultValue="" onChange={(e) => e.target.value && setAll(e.target.value)} disabled={sending}>
               <option value="">Choose…</option>
               {CARRIER_CHOICES.map((c) => (

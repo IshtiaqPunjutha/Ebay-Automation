@@ -131,6 +131,11 @@ function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
                 >
                   <ArrowUpRight strokeWidth={2} />
                 </a>
+                {track.carrierName ? (
+                  <span className="badge badge-success" title="Delivery carrier shown by AliExpress">{track.carrierName}</span>
+                ) : (
+                  <span className="badge" title="AliExpress has not shown the delivery carrier yet. Sending to eBay waits for it.">Waiting for carrier</span>
+                )}
                 {(track.carrierText || track.statusText) && (
                   <div className="item-meta" style={{ flexBasis: "100%" }}>
                     {[track.carrierText, track.statusText].filter(Boolean).join(" · ")}
@@ -805,6 +810,7 @@ export default function OrdersView({ status = "new" }) {
       summary: order.lineItems.map((li) => `${li.quantity} × ${li.title}`).join("; ").slice(0, 140),
       trackingNumber: ready.trackingNumber,
       serviceText: ready.carrierText,
+      carrierName: ready.carrierName,
     };
   });
 

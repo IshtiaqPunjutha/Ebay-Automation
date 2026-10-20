@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, CircleAlert, LoaderCircle, Timer, X } from "lucide-react";
-import { CARRIER_CHOICES, CARRIER_PATTERN } from "@/lib/shipping";
 
-const CUSTOM = "__custom__";
 
 // Settings for sending tracking to eBay automatically before the dispatch-by date, plus a preview of
 // what would go out right now and a log of what the daily job already did.
@@ -13,8 +11,6 @@ export default function AutoShipDialog({ storeId, onClose }) {
   const [loaded, setLoaded] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [daysBefore, setDaysBefore] = useState(2);
-  const [choice, setChoice] = useState("Other");
-  const [custom, setCustom] = useState("");
   const [log, setLog] = useState([]);
   const [cronReady, setCronReady] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,7 +20,6 @@ export default function AutoShipDialog({ storeId, onClose }) {
   const [previewing, setPreviewing] = useState(false);
 
   const base = `/api/ebay/autoship?store=${encodeURIComponent(storeId)}`;
-  const carrier = (choice === CUSTOM ? custom : choice).trim();
 
   useEffect(() => {
     fetch(base)
@@ -33,9 +28,6 @@ export default function AutoShipDialog({ storeId, onClose }) {
         if (data.error) throw new Error(data.error);
         setEnabled(Boolean(data.settings.enabled));
         setDaysBefore(data.settings.daysBefore);
-        const known = CARRIER_CHOICES.includes(data.settings.carrier);
-        setChoice(known ? data.settings.carrier : CUSTOM);
-        setCustom(known ? "" : data.settings.carrier);
         setLog(data.log || []);
         setCronReady(data.cronReady !== false);
         setLoaded(true);
@@ -49,10 +41,6 @@ export default function AutoShipDialog({ storeId, onClose }) {
   }, [base, onClose]);
 
   async function save(nextEnabled) {
-    if (nextEnabled && !CARRIER_PATTERN.test(carrier)) {
-      setError("Choose a carrier first (letters and digits only).");
-      return;
-    }
     if (
       nextEnabled &&
       !confirm(
@@ -68,7 +56,7 @@ export default function AutoShipDialog({ storeId, onClose }) {
       const res = await fetch(base, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: nextEnabled, daysBefore: Number(daysBefore), carrier }),
+        body: JSON.stringify({ enabled: nextEnabled, daysBefore: Number(daysBefore) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not save.");
@@ -149,20 +137,9 @@ export default function AutoShipDialog({ storeId, onClose }) {
                   />
                   day(s) before the dispatch-by date
                 </label>
-                <label className="filter-select">
-                  Carrier on eBay
-                  <select value={choice} onChange={(e) => setChoice(e.target.value)} disabled={saving}>
-                    {CARRIER_CHOICES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                    <option value={CUSTOM}>Type my own…</option>
-                  </select>
-                  {choice === CUSTOM && (
-                    <input className="input" style={{ width: 150 }} placeholder="Carrier name" value={custom} onChange={(e) => setCustom(e.target.value)} />
-                  )}
-                </label>
+                <p className="text-muted" style={{ margin: 0, fontSize: 12 }}>
+                  The carrier is taken from AliExpress for each order. Orders whose carrier name has not appeared yet are left alone.
+                </p>
               </div>
 
               <div className="dialog-actions">

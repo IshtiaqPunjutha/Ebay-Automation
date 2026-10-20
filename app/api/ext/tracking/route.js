@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrderRefs, listEbayStores, setTracking } from "@/lib/store";
 import { authFromBearer, canUseStore } from "@/lib/exttoken";
+import { cleanCarrierName } from "@/lib/shipping";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -40,6 +41,8 @@ export async function POST(request) {
       if (!orderId) continue;
       const saved = await setTracking(auth.userId, store.storeId, aliOrderId, {
         trackingNumber,
+        // The delivery carrier AliExpress shows on the tracking page (such as "InPost"); empty until it appears.
+        carrierName: cleanCarrierName(body.carrierName),
         carrierText: text(body.carrierText),
         statusText: text(body.statusText),
         estimateText: text(body.estimateText),

@@ -108,10 +108,20 @@ async function patchTrackState(aliOrderId, patch) {
   await chrome.storage.local.set({ trackState: all });
 }
 
+// Tracking counts as done once the number is in the dashboard AND the delivery carrier is known.
+// Until the carrier appears on AliExpress's page the order is read again (see TRACK_RETRY_MS).
+const trackingDone = (state) => Boolean(state?.uploadedAt && state?.carrierName);
+
 async function uploadTracking(data) {
   const result = await api("/api/ext/tracking", { method: "POST", body: JSON.stringify(data) });
   if (result.ok) {
-    await patchTrackState(data.aliOrderId, { trackingNumber: data.trackingNumber, uploadedAt: Date.now() });
+    await patchTrackState(data.aliOrderId, {
+      trackingNumber: data.trackingNumber,
+      carrierName: data.carrierName || "",
+      uploadedAt: Date.now(),
+      attemptAt: Date.now(), // so an order still waiting for its carrier is looked at again after a while, not at once
+      lastError: data.carrierName ? "" : "Tracking saved; waiting for AliExpress to show the delivery carrier.",
+    });
   } else {
     await patchTrackState(data.aliOrderId, { attemptAt: Date.now(), lastError: result.error });
   }
@@ -169,7 +179,7 @@ async function enqueueTracking(aliOrderId, url) {
   // Only an AliExpress tracking link whose order number matches may be opened.
   if (AliSyncLib.trackingOrderIdFromUrl(url) !== String(aliOrderId)) return { ok: false, error: "Not an AliExpress tracking link" };
   const state = (await getTrackState())[aliOrderId] || {};
-  if (state.uploadedAt) return { ok: true, skipped: "already uploaded" };
+  if (trackingDone(state)) return { ok: true, skipped: "already uploaded" };
   if (state.attemptAt && Date.now() - state.attemptAt < TRACK_RETRY_MS) return { ok: true, skipped: "tried recently" };
   if (trackActive.has(String(aliOrderId))) return { ok: true, skipped: "already queued or open" };
   trackActive.add(String(aliOrderId));
@@ -200,7 +210,7 @@ async function hasOrdersWaitingForTracking() {
   const { synced } = await chrome.storage.local.get("synced");
   const trackState = await getTrackState();
   return Object.entries(synced || {}).some(
-    ([id, value]) => !trackState[id]?.uploadedAt && (!value.at || Date.now() - value.at < AUTO_RECENT_MS)
+    ([id, value]) => !trackingDone(trackState[id]) && (!value.at || Date.now() - value.at < AUTO_RECENT_MS)
   );
 }
 
@@ -217,7 +227,7 @@ async function autoCheck({ force = false } = {}) {
     if (force) {
       // "Check now": also let orders that were tried recently be tried again.
       const all = await getTrackState();
-      for (const v of Object.values(all)) if (!v.uploadedAt) delete v.attemptAt;
+      for (const v of Object.values(all)) if (!trackingDone(v)) delete v.attemptAt;
       await chrome.storage.local.set({ trackState: all });
     }
     tab = await chrome.tabs.create({ url: ORDERS_URL, active: false });
@@ -322,7 +332,7 @@ async function handle(message, sender) {
     case "TRACK_RETRY": {
       // Let every order whose tracking was not read be tried again the next time its page is open.
       const all = await getTrackState();
-      for (const v of Object.values(all)) if (!v.uploadedAt) delete v.attemptAt;
+      for (const v of Object.values(all)) if (!trackingDone(v)) delete v.attemptAt;
       await chrome.storage.local.set({ trackState: all });
       return { ok: true };
     }
@@ -335,6 +345,7 @@ async function handle(message, sender) {
       const result = await uploadTracking({
         aliOrderId,
         trackingNumber: number,
+        carrierName: String(message.carrierName || "").slice(0, 60),
         carrierText: message.carrierText || "",
         statusText: message.statusText || "",
         estimateText: message.estimateText || "",
@@ -368,7 +379,7 @@ async function handle(message, sender) {
       const { synced } = await chrome.storage.local.get("synced");
       const trackState = await getTrackState();
       const tracked = {};
-      for (const [id, value] of Object.entries(trackState)) if (value.uploadedAt) tracked[id] = true;
+      for (const [id, value] of Object.entries(trackState)) if (trackingDone(value)) tracked[id] = true;
       return {
         ok: true,
         configured: Boolean(AliSyncLib.originOf(settings.dashboardUrl) && settings.token),

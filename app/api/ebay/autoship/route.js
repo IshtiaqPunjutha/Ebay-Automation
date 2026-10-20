@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { runAutoShip } from "@/lib/autoship";
-import { CARRIER_PATTERN } from "@/lib/shipping";
 import { getAutoShip, getAutoShipLog, getEbayStore, setAutoShip } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
@@ -52,7 +51,8 @@ export async function GET(request) {
   }
 }
 
-// PUT /api/ebay/autoship?store=<id>   body: { enabled, daysBefore (0-14), carrier }
+// PUT /api/ebay/autoship?store=<id>   body: { enabled, daysBefore (0-14) }
+// (the carrier is taken per order from AliExpress's tracking page, so it is not a setting any more)
 export async function PUT(request) {
   const r = await resolve(request);
   if (r.error) return r.error;
@@ -64,12 +64,11 @@ export async function PUT(request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const daysBefore = Number(body?.daysBefore);
-  const carrier = typeof body?.carrier === "string" ? body.carrier.trim() : "";
-  if (typeof body?.enabled !== "boolean" || !Number.isInteger(daysBefore) || daysBefore < 0 || daysBefore > 14 || !CARRIER_PATTERN.test(carrier)) {
-    return NextResponse.json({ error: "enabled (true/false), daysBefore (0 to 14) and a carrier are needed." }, { status: 400 });
+  if (typeof body?.enabled !== "boolean" || !Number.isInteger(daysBefore) || daysBefore < 0 || daysBefore > 14) {
+    return NextResponse.json({ error: "enabled (true/false) and daysBefore (0 to 14) are needed." }, { status: 400 });
   }
   try {
-    return NextResponse.json({ settings: await setAutoShip(r.userId, r.storeId, { enabled: body.enabled, daysBefore, carrier }) });
+    return NextResponse.json({ settings: await setAutoShip(r.userId, r.storeId, { enabled: body.enabled, daysBefore }) });
   } catch (err) {
     console.error(`Error saving automatic sending for store ${r.storeId}:`, err);
     return NextResponse.json({ error: "Failed to save" }, { status: 500 });

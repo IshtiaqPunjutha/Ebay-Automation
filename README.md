@@ -110,7 +110,7 @@ accepts that token (a hash of it is stored in KV) instead of the login cookie.
 
 Orders on the **New orders** page whose AliExpress tracking has been read by the extension get an
 enabled tick box. Tick them (or press **Select all with tracking**) and press **Send tracking to eBay**:
-a review screen lists each order with its tracking number and a carrier choice, and nothing is sent until
+a review screen lists each order with its tracking number and the carrier AliExpress showed (changeable), and nothing is sent until
 the confirmation box is ticked. Sending marks the order as **shipped on eBay** and tells the buyer; the
 API offers no way to undo that.
 
@@ -125,7 +125,10 @@ against a fake server.
 ### Automatic sending (before the dispatch-by date)
 
 On **New orders**, the **Auto-send** button opens the settings for that store: turn it on, choose how many
-days before eBay's dispatch-by date to send (default 2) and the carrier name to give eBay. It starts off.
+days before eBay's dispatch-by date to send (default 2). The carrier is taken per order from AliExpress. It starts off.
+
+An order only becomes sendable once AliExpress shows the local carrier name (e.g. InPost) next to the
+tracking number; until then it shows "Waiting for carrier" and the extension keeps re-reading it.
 
 Once a day (07:00 UTC, see `vercel.json`) the job `/api/cron/auto-ship` looks at every store that has it
 switched on and sends the tracking of each unshipped order that is due, using exactly the same checks as the
