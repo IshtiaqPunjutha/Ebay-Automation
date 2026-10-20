@@ -221,7 +221,25 @@ function TrackingCell({ shipments }) {
 
 // Opens the product's AliExpress page. The first link (the column next to the
 // eBay link in the sheet) is the main one; extra links sit behind a "+N" menu.
-function AliExpressOpen({ links, orderId, storeId }) {
+function AliExpressOpen({ links, orderId, storeId, addressText }) {
+  // Opening the AliExpress product also puts the buyer's full address on the clipboard, ready for the
+  // order-autofill extension to fill into AliExpress checkout.
+  const [addressCopied, setAddressCopied] = useState(false);
+  async function copyAddress() {
+    if (!addressText) return;
+    try {
+      await navigator.clipboard.writeText(addressText);
+    } catch (err) {
+      const area = document.createElement("textarea");
+      area.value = addressText;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    setAddressCopied(true);
+    setTimeout(() => setAddressCopied(false), 1800);
+  }
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -262,10 +280,11 @@ function AliExpressOpen({ links, orderId, storeId }) {
         href={tagged(links[0])}
         target="_blank"
         rel="noopener noreferrer"
-        title="Open on AliExpress"
+        title={addressCopied ? "Address copied. Opening AliExpress" : "Open on AliExpress (also copies the buyer's address)"}
         aria-label="Open on AliExpress"
+        onClick={copyAddress}
       >
-        <ArrowUpRight strokeWidth={2.25} />
+        {addressCopied ? <Check strokeWidth={2.5} style={{ color: "var(--success)" }} /> : <ArrowUpRight strokeWidth={2.25} />}
       </a>
       {links.length > 1 && (
         <>
@@ -281,7 +300,7 @@ function AliExpressOpen({ links, orderId, storeId }) {
           {open && (
             <div className="ali-menu" role="menu">
               {links.map((link, i) => (
-                <a key={link + i} href={tagged(link)} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => setOpen(false)}>
+                <a key={link + i} href={tagged(link)} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => { copyAddress(); setOpen(false); }}>
                   <ArrowUpRight strokeWidth={2} />
                   AliExpress link {i + 1}
                 </a>
@@ -1296,6 +1315,7 @@ export default function OrdersView({ status = "new" }) {
                                   links={li.legacyItemId ? aliLinks[li.legacyItemId] : undefined}
                                   orderId={order.orderId}
                                   storeId={storeId}
+                                  addressText={fullBlock}
                                 />
                                 {li.imageUrl ? (
                                   <button
