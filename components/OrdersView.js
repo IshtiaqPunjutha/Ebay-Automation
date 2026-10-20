@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ZoomThumb from "./ZoomThumb";
 import SendTrackingDialog from "./SendTrackingDialog";
+import AutoShipDialog from "./AutoShipDialog";
 import { checkReadyToShip } from "@/lib/shipping";
-import { ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Timer, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
 
 // The numeric item id inside an eBay listing link (…/itm/123456789012).
 function itemIdFromLink(link) {
@@ -537,6 +538,7 @@ export default function OrdersView({ status = "new" }) {
   // The review screen works from the list as it was when it opened: after a send the page refreshes
   // behind it and the shipped orders leave "new", which must not make the results disappear.
   const [reviewSnapshot, setReviewSnapshot] = useState([]);
+  const [showAuto, setShowAuto] = useState(false);
 
   async function loadSent() {
     try {
@@ -845,19 +847,33 @@ export default function OrdersView({ status = "new" }) {
             {copy.subtitle}
           </p>
         </div>
-        <button
-          onClick={() => {
-            loadOrders();
-            loadSheetLinks();
-            loadOrderRefs();
-            loadTracking();
-          }}
-          className="btn btn-secondary"
-          disabled={loading}
-        >
-          <RefreshCw size={14} strokeWidth={2} />
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {status === "new" && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowAuto(true)}
+              title="Send tracking to eBay automatically shortly before the dispatch-by date"
+            >
+              <Timer strokeWidth={2} />
+              Auto-send
+            </button>
+          )}
+          <button
+            onClick={() => {
+              loadOrders();
+              loadSheetLinks();
+              loadOrderRefs();
+              loadTracking();
+            }}
+            className="btn btn-secondary"
+            disabled={loading}
+          >
+            <RefreshCw size={14} strokeWidth={2} />
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        {showAuto && <AutoShipDialog storeId={storeId} onClose={() => setShowAuto(false)} />}
       </div>
 
       {error && (
@@ -1202,7 +1218,7 @@ export default function OrdersView({ status = "new" }) {
                                   {status === "new" && sentTracking[order.orderId] && (
                                     <span
                                       className="badge badge-info"
-                                      title={`Tracking ${sentTracking[order.orderId].trackingNumber} (${sentTracking[order.orderId].carrier}) was sent to eBay`}
+                                      title={`Tracking ${sentTracking[order.orderId].trackingNumber} (${sentTracking[order.orderId].carrier}) was sent to eBay${sentTracking[order.orderId].auto ? " automatically" : ""}`}
                                     >
                                       <Truck strokeWidth={2.5} />
                                       Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}

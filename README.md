@@ -121,3 +121,20 @@ several AliExpress orders, or without tracking yet, cannot be ticked.
 
 `EBAY_API_BASE` (optional) points the eBay Fulfillment calls at another host and exists only for testing
 against a fake server.
+
+### Automatic sending (before the dispatch-by date)
+
+On **New orders**, the **Auto-send** button opens the settings for that store: turn it on, choose how many
+days before eBay's dispatch-by date to send (default 2) and the carrier name to give eBay. It starts off.
+
+Once a day (07:00 UTC, see `vercel.json`) the job `/api/cron/auto-ship` looks at every store that has it
+switched on and sends the tracking of each unshipped order that is due, using exactly the same checks as the
+manual button (`lib/shipOrders.js`): the tracking was read from AliExpress, the order has exactly one
+AliExpress order, eBay still shows it as not shipped, and it was never sent before. Orders that are not ready
+are left alone and the **What would be sent now?** button shows why. What the job did is listed in the dialog.
+
+**Setup (once):** add an environment variable `CRON_SECRET` (any random text, 16+ characters) in Vercel and
+redeploy. Vercel then calls the job with `Authorization: Bearer <CRON_SECRET>`. Without it the job refuses to
+run, so nothing is sent automatically. Vercel's Hobby plan allows one run a day, so an order may go out up to a
+day later than the exact moment; the tracking itself is only available once the extension has read it from
+AliExpress (Chrome must have been running).

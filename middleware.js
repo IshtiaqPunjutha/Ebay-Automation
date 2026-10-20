@@ -12,6 +12,8 @@ export async function middleware(request) {
     pathname.startsWith("/api/auth/register") ||
     // The browser extension authenticates with its own Bearer token, not the cookie.
     pathname.startsWith("/api/ext/") ||
+    // The daily job is started by Vercel's cron and proves itself with CRON_SECRET, not a login.
+    pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon");
 

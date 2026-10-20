@@ -1214,6 +1214,30 @@ a.list-row:hover,
   margin-top: 14px;
 }
 
+/* Automatic sending dialog */
+.auto-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 8px 0 4px;
+}
+
+.auto-preview {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  max-height: 32vh;
+  overflow: auto;
+}
+
+.auto-row {
+  font-size: 12px;
+  padding: 3px 0;
+  color: var(--text-secondary);
+}
+
 /* Review screen for sending tracking to eBay */
 .dialog.wide {
   max-width: 920px;
