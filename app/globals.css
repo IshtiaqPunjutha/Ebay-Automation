@@ -2233,3 +2233,15 @@ a.list-row:hover,
   margin-top: 6px;
   justify-content: flex-start;
 }
+
+/* Total and earned in one narrow column */
+.money-cell {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.money-cell .money-earned {
+  color: var(--success);
+  font-size: 12.5px;
+  margin-top: 2px;
+}

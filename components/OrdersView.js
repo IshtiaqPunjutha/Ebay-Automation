@@ -1178,8 +1178,9 @@ export default function OrdersView({ status = "new" }) {
                     <th>Order</th>
                     {status === "dispatched" && <th>Status</th>}
                     <th className="num">Qty</th>
-                    <th className="num">Total{singleCurrency ? ` (${singleCurrency})` : ""}</th>
-                    <th className="num">Earnings{singleCurrency ? ` (${singleCurrency})` : ""}</th>
+                    <th className="num" title={`What the buyer paid, and what you earn after eBay's fees${singleCurrency ? ` (${singleCurrency})` : ""}`}>
+                      Total / Earned
+                    </th>
                     <th>Ship to</th>
                     <th>{status === "dispatched" ? "AliExpress order & tracking" : "AliExpress order"}</th>
                     {status === "new" && <th>Status</th>}
@@ -1325,21 +1326,26 @@ export default function OrdersView({ status = "new" }) {
                             </td>
                             {status === "dispatched" && statusCell}
                             <td className="num mono">{li.quantity}</td>
-                            <td className="num mono">
-                              {idx === 0 && order.orderTotal != null
-                                ? singleCurrency
-                                  ? order.orderTotal.toFixed(2)
-                                  : `${order.currency || ""} ${order.orderTotal.toFixed(2)}`.trim()
-                                : ""}
-                            </td>
-                            <td className="num mono" style={order.earnings && idx === 0 ? { color: "var(--success)" } : undefined}>
-                              {idx === 0
-                                ? order.earnings
-                                  ? singleCurrency
-                                    ? order.earnings.earnings.toFixed(2)
-                                    : `${order.earnings.currency} ${order.earnings.earnings.toFixed(2)}`
-                                  : "—"
-                                : ""}
+                            {/* Total and earnings share one narrow column: the total on top, what you earn (green) below. */}
+                            <td className="num mono money-cell">
+                              {idx === 0 && (
+                                <>
+                                  <div title="What the buyer paid">
+                                    {order.orderTotal != null
+                                      ? singleCurrency
+                                        ? order.orderTotal.toFixed(2)
+                                        : `${order.currency || ""} ${order.orderTotal.toFixed(2)}`.trim()
+                                      : ""}
+                                  </div>
+                                  <div className="money-earned" title="What you earn after eBay's fees">
+                                    {order.earnings
+                                      ? singleCurrency
+                                        ? order.earnings.earnings.toFixed(2)
+                                        : `${order.earnings.currency} ${order.earnings.earnings.toFixed(2)}`
+                                      : "—"}
+                                  </div>
+                                </>
+                              )}
                             </td>
                             <td style={{ minWidth: "200px" }}>
                               {idx === 0 && (
