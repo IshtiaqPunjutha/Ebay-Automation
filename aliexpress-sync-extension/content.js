@@ -252,8 +252,13 @@
     if (!state.synced[id]) return;
     const money = readCardTotal(node);
     if (!money || !money.currency || costsSent.get(id) === `${money.amount}${money.currency}`) return;
-    costsSent.set(id, `${money.amount}${money.currency}`);
-    send({ type: "COST", aliOrderId: id, amount: money.amount, currency: money.currency });
+    const key = `${money.amount}${money.currency}`;
+    costsSent.set(id, key);
+    send({ type: "COST", aliOrderId: id, amount: money.amount, currency: money.currency }).then((res) => {
+      // A failed save is tried again on the next scan.
+      if (!res?.ok) costsSent.delete(id);
+      console.log(`[AliExpress Sync] cost ${money.amount} ${money.currency} for ${id}:`, res?.ok ? "saved" : res?.error);
+    });
   }
 
   function paint(button, id) {
