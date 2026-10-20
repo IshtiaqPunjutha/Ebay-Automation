@@ -33,7 +33,7 @@ export default function AppShell({ children }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [storeLabels, setStoreLabels] = useState({});
   // Looks for new orders in every store while the dashboard is open (chime, notification, counts).
-  const { counts, soundOn, toggleSound } = useNewOrderWatch();
+  const { counts, storeCount, soundOn, toggleSound } = useNewOrderWatch();
 
   useEffect(() => {
     try {
@@ -84,7 +84,7 @@ export default function AppShell({ children }) {
 
   return (
     <div className={shellClass}>
-      <Sidebar collapsed={collapsed} store={store} counts={counts} onNavigate={() => setDrawerOpen(false)} />
+      <Sidebar collapsed={collapsed} store={store} counts={counts} storeCount={storeCount} onNavigate={() => setDrawerOpen(false)} />
       <div className="sidebar-backdrop" onClick={() => setDrawerOpen(false)} />
       <div className="app-body">
         <header className="topbar">

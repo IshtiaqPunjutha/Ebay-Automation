@@ -48,6 +48,7 @@ function chime(audio) {
 // counts: { [storeId]: { total, needsAli } }  total = orders still to ship, needsAli = those without an AliExpress number
 export default function useNewOrderWatch() {
   const [counts, setCounts] = useState({});
+  const [storeCount, setStoreCount] = useState(0);
   const [soundOn, setSoundOn] = useState(true);
   const audioRef = useRef(null);
   const soundRef = useRef(true);
@@ -116,6 +117,7 @@ export default function useNewOrderWatch() {
         }
         if (stopped) return;
         setCounts((prev) => ({ ...prev, ...next }));
+        setStoreCount((data.stores || []).length);
 
         if (announce.length) {
           if (soundRef.current && audioRef.current) chime(audioRef.current);
@@ -159,5 +161,5 @@ export default function useNewOrderWatch() {
     document.title = waiting > 0 ? `(${waiting}) ${clean}` : clean;
   }, [waiting]);
 
-  return { counts, soundOn, toggleSound };
+  return { counts, storeCount, soundOn, toggleSound };
 }
