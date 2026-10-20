@@ -235,6 +235,27 @@
     return { itemIds: [...found], text };
   }
 
+  // What was paid for this order: the "Total: £ 2.04" shown in its card.
+  function readCardTotal(node) {
+    let box = node;
+    for (let depth = 0; box && depth < 12; depth += 1, box = box.parentElement) {
+      if (lib.orderIdsFromText(box.innerText || "").length > 1) return null;
+      const total = box.querySelector('[class*="order-item-content-opt-price-total"]');
+      if (total) return lib.parseMoney(total.textContent);
+    }
+    return null;
+  }
+
+  // Tell the dashboard what each synced order cost (once per amount), for the finance pages.
+  const costsSent = new Map();
+  function sendCosts(node, id) {
+    if (!state.synced[id]) return;
+    const money = readCardTotal(node);
+    if (!money || !money.currency || costsSent.get(id) === `${money.amount}${money.currency}`) return;
+    costsSent.set(id, `${money.amount}${money.currency}`);
+    send({ type: "COST", aliOrderId: id, amount: money.amount, currency: money.currency });
+  }
+
   function paint(button, id) {
     const done = state.synced[id];
     // Only touch the DOM when something changed, or the page observer would see our own edit and rescan forever.
@@ -344,6 +365,7 @@
     if (res?.ok) {
       await refreshState();
       paint(button, id);
+      sendCosts(node, id);
       toast(`Synced ${id} to eBay order ${entry.orderId}${entry.buyer ? ` (${entry.buyer})` : ""}.`, false, {
         label: "Undo",
         onClick: async () => {
@@ -422,6 +444,7 @@
     // One cheap pass over the page text first; the element search below is only worth it when a number exists.
     if (lib.orderIdsFromText(document.body.innerText).length === 0) return;
     for (const { node, id } of findRefElements()) {
+      sendCosts(node, id);
       const existing = node.querySelector(`[${BTN_ATTR}]`);
       if (existing) {
         if (existing.getAttribute(BTN_ATTR) === id) {

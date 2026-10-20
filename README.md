@@ -141,3 +141,16 @@ redeploy. Vercel then calls the job with `Authorization: Bearer <CRON_SECRET>`. 
 run, so nothing is sent automatically. Vercel's Hobby plan allows one run a day, so an order may go out up to a
 day later than the exact moment; the tracking itself is only available once the extension has read it from
 AliExpress (Chrome must have been running).
+
+## Finance (PIN protected)
+
+The **Finance** page shows, for a chosen month and for every store, the eBay earnings (after eBay's fees,
+from the Finances API), the AliExpress cost, other charges, the profit, and each partner's share. Each
+store has its own split ("VA gets 40%", owner gets the rest), saved with **Save split**.
+
+- The AliExpress cost is read by the extension from the order list ("Total: £ 2.04") once an order has
+  been synced to an eBay order (extension 1.3.0, reload it). Orders without a cost are counted and
+  flagged, because their profit is then overstated.
+- The first visit asks you to create a 4 to 8 digit PIN; after that the PIN is asked on every visit. The
+  page locks again when you leave it (and after 15 minutes). Five wrong tries lock it for 5 minutes.
+- Costs in a different currency than the earnings are not converted; they are reported and left out.

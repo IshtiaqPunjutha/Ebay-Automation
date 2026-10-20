@@ -406,6 +406,14 @@ async function handle(message, sender) {
       }
       return result;
     }
+    case "COST": {
+      const amount = Number(message.amount);
+      if (!Number.isFinite(amount) || !/^[A-Z]{3}$/.test(message.currency || "")) return { ok: false, error: "Bad amount" };
+      return await api("/api/ext/cost", {
+        method: "POST",
+        body: JSON.stringify({ aliOrderId: String(message.aliOrderId || ""), amount, currency: message.currency }),
+      });
+    }
     case "SYNC": {
       const result = await api("/api/ext/orderref", {
         method: "POST",

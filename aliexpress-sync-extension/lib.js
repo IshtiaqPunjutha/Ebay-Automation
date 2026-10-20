@@ -133,7 +133,22 @@
     return /^[A-Za-z0-9]{6,40}$/.test(value) ? value : "";
   }
 
-  const api = { trackingOrderIdFromUrl, cleanTrackingNumber, orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, scoreAgainstCard, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };
+  // "£ 2.04", "Total:£2.04", "US $12.50", "€1,299.00" -> { amount: 2.04, currency: "GBP" }; null if unclear.
+  function parseMoney(text) {
+    const t = String(text || "").replace(/\s+/g, " ");
+    const symbols = { "£": "GBP", "€": "EUR", "$": "USD" };
+    const m = t.match(/([£€$])\s*([0-9][0-9.,]*)/);
+    if (!m) return null;
+    let n = m[2];
+    // "1,299.00" or "1.299,00": the last separator is the decimal point when two digits follow it.
+    const last = Math.max(n.lastIndexOf("."), n.lastIndexOf(","));
+    if (last >= 0 && n.length - last - 1 === 2) n = n.slice(0, last).replace(/[.,]/g, "") + "." + n.slice(last + 1);
+    else n = n.replace(/[.,]/g, "");
+    const amount = Number(n);
+    return Number.isFinite(amount) && amount >= 0 && amount < 1e6 ? { amount, currency: symbols[m[1]] } : null;
+  }
+
+  const api = { parseMoney, trackingOrderIdFromUrl, cleanTrackingNumber, orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, scoreAgainstCard, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };
   root.AliSyncLib = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

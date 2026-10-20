@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, ChevronLeft, Inbox, LayoutGrid, Store, PackageSearch, Table2, ListChecks, Truck } from "lucide-react";
+import { ChevronDown, ChevronLeft, Inbox, LayoutGrid, Store, PackageSearch, Table2, ListChecks, Truck, Landmark } from "lucide-react";
 import AccountMenu from "./AccountMenu";
 
 // The sidebar's contents follow where you are: workspace pages show the
@@ -15,6 +15,7 @@ function workspaceGroups() {
       items: [
         { href: "/", label: "Dashboard", icon: LayoutGrid },
         { href: "/stores", label: "Stores", icon: Store },
+        { href: "/finance", label: "Finance", icon: Landmark },
       ],
     },
     {
