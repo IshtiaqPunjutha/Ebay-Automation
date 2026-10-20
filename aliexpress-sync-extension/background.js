@@ -90,7 +90,7 @@ async function reconcileSynced(force = false) {
 // The order list shows a "Track status" link for orders that have tracking. For orders that are
 // synced to the dashboard, that link is opened in a background tab, the tracking page's content
 // script reads the number, and it is uploaded to the dashboard (shown under the order's number).
-const TRACK_RETRY_MS = 3 * 60 * 60 * 1000; // try an order again after 3 hours if nothing was read
+const TRACK_RETRY_MS = 2.5 * 60 * 60 * 1000; // try an order again after 2.5 hours if nothing was read (a little under the automatic check's 3 hours)
 const TRACK_TAB_TIMEOUT_MS = 30 * 1000;
 const trackQueue = [];
 const trackActive = new Set(); // orders waiting in the queue or being read right now
@@ -178,6 +178,78 @@ async function enqueueTracking(aliOrderId, url) {
   return { ok: true, queued: true };
 }
 
+// ---- Checking for new tracking by itself --------------------------------------
+// Tracking is only read while an AliExpress orders page is open, so every few hours (while Chrome
+// is running) the extension opens the orders list in a background tab, lets the page's script find
+// the "Track status" links of synced orders, waits until the tracking reading is done, and closes
+// the tab again. Nothing is changed on AliExpress; it needs to be logged in there.
+const ORDERS_URL = "https://www.aliexpress.com/p/order/index.html";
+const AUTO_EVERY_MIN = 180;
+const AUTO_MIN_WAIT_MS = globalThis.__fastTest ? 1500 : 60 * 1000; // time for the list to load and the readings to start
+const AUTO_MAX_WAIT_MS = globalThis.__fastTest ? 9000 : 5 * 60 * 1000;
+const AUTO_RECENT_MS = 45 * 24 * 60 * 60 * 1000; // orders synced longer ago are not worth looking at
+let autoRunning = false;
+
+async function autoSettingOn() {
+  const settings = await getSettings();
+  return settings.autoTrack !== false; // on unless switched off
+}
+
+// Is there a synced order whose tracking has not been read yet?
+async function hasOrdersWaitingForTracking() {
+  const { synced } = await chrome.storage.local.get("synced");
+  const trackState = await getTrackState();
+  return Object.entries(synced || {}).some(
+    ([id, value]) => !trackState[id]?.uploadedAt && (!value.at || Date.now() - value.at < AUTO_RECENT_MS)
+  );
+}
+
+async function autoCheck({ force = false } = {}) {
+  if (autoRunning) return { ok: true, skipped: "already running" };
+  const settings = await getSettings();
+  if (!AliSyncLib.originOf(settings.dashboardUrl) || !settings.token) return { ok: false, error: "Add your dashboard address and token first." };
+  if (!force && !(await autoSettingOn())) return { ok: true, skipped: "switched off" };
+  if (!force && !(await hasOrdersWaitingForTracking())) return { ok: true, skipped: "nothing waiting" };
+
+  autoRunning = true;
+  let tab = null;
+  try {
+    if (force) {
+      // "Check now": also let orders that were tried recently be tried again.
+      const all = await getTrackState();
+      for (const v of Object.values(all)) if (!v.uploadedAt) delete v.attemptAt;
+      await chrome.storage.local.set({ trackState: all });
+    }
+    tab = await chrome.tabs.create({ url: ORDERS_URL, active: false });
+    const started = Date.now();
+    while (Date.now() - started < AUTO_MAX_WAIT_MS) {
+      await new Promise((r) => setTimeout(r, globalThis.__fastTest ? 300 : 2000));
+      // Done once the list has had time to load and no reading is running or waiting.
+      if (Date.now() - started >= AUTO_MIN_WAIT_MS && !trackRunning && trackQueue.length === 0) break;
+    }
+    return { ok: true, checked: true };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  } finally {
+    if (tab) chrome.tabs.remove(tab.id).catch(() => {});
+    autoRunning = false;
+    await chrome.storage.local.set({ lastAutoCheck: Date.now() });
+  }
+}
+
+function scheduleAutoCheck() {
+  if (!chrome.alarms) return;
+  // The first check a couple of minutes after the browser starts, then every few hours.
+  chrome.alarms.create("tracking-check", { delayInMinutes: 2, periodInMinutes: AUTO_EVERY_MIN });
+}
+if (chrome.alarms) {
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === "tracking-check") autoCheck().catch(() => {});
+  });
+  chrome.runtime.onInstalled?.addListener(scheduleAutoCheck);
+  chrome.runtime.onStartup?.addListener(scheduleAutoCheck);
+}
+
 // eBay orders that still need an AliExpress number, asked of the dashboard for every
 // connected store. Kept for a short while so pressing Sync on several orders in a row
 // does not ask eBay each time.
@@ -225,6 +297,17 @@ async function getCandidates() {
 
 async function handle(message, sender) {
   switch (message?.type) {
+    case "AUTO_CHECK":
+      return await autoCheck({ force: true });
+    case "GET_AUTO": {
+      const { lastAutoCheck } = await chrome.storage.local.get("lastAutoCheck");
+      return { ok: true, enabled: await autoSettingOn(), lastAutoCheck: lastAutoCheck || null, running: autoRunning };
+    }
+    case "SET_AUTO": {
+      const settings = await getSettings();
+      await chrome.storage.local.set({ settings: { ...settings, autoTrack: Boolean(message.enabled) } });
+      return { ok: true };
+    }
     case "FETCH_TRACKING":
       return await enqueueTracking(message.aliOrderId, message.url);
     case "TRACK_STATUS": {

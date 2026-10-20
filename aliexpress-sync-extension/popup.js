@@ -40,7 +40,9 @@ async function save() {
   if (!/^oat_[A-Za-z0-9_-]{20,80}$/.test(token)) return msg("That does not look like a token from the dashboard.", false);
   const granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
   if (!granted) return msg("Permission to reach the dashboard was not given.", false);
-  await chrome.storage.local.set({ settings: { dashboardUrl: origin, token } });
+  // Keep the other settings (such as the automatic tracking check) when the address or token changes.
+  const { settings: existing } = await chrome.storage.local.get("settings");
+  await chrome.storage.local.set({ settings: { ...(existing || {}), dashboardUrl: origin, token } });
   $("url").value = origin;
   msg("Saved.", true);
   return true;
@@ -94,6 +96,31 @@ async function renderTracking() {
   }
 }
 
+async function renderAuto() {
+  const res = await chrome.runtime.sendMessage({ type: "GET_AUTO" });
+  $("auto").checked = res?.enabled !== false;
+  $("autoInfo").textContent = res?.running
+    ? "Checking now…"
+    : res?.lastAutoCheck
+      ? `Last automatic check: ${ago(res.lastAutoCheck)}.`
+      : "It has not checked yet. The first check happens a couple of minutes after Chrome starts.";
+}
+
+$("auto").addEventListener("change", async () => {
+  await chrome.runtime.sendMessage({ type: "SET_AUTO", enabled: $("auto").checked });
+  renderAuto();
+});
+
+$("checkNow").addEventListener("click", async () => {
+  $("checkNow").disabled = true;
+  $("autoInfo").textContent = "Checking: an AliExpress tab opens in the background and closes by itself (up to a few minutes)…";
+  const res = await chrome.runtime.sendMessage({ type: "AUTO_CHECK" });
+  $("checkNow").disabled = false;
+  await renderAuto();
+  await renderTracking();
+  if (res && !res.ok) $("autoInfo").textContent = res.error || "Could not check.";
+});
+
 $("retry").addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "TRACK_RETRY" });
   $("retryMsg").textContent = "Done. Now refresh the AliExpress orders page and they will be tried again.";
@@ -105,3 +132,4 @@ $("test").addEventListener("click", test);
 loadSettings();
 renderPending();
 renderTracking();
+renderAuto();

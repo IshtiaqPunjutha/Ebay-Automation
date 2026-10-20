@@ -23,6 +23,8 @@
       li code { font-family: ui-monospace, Consolas, monospace; }
       li button { padding: 2px 8px; font-size: 12px; }
       .muted { color: #71717a; font-size: 12px; }
+      label.check { display: flex; gap: 8px; align-items: flex-start; margin-top: 4px; color: #18181b; }
+      label.check input { width: auto; margin-top: 2px; }
     </style>
   </head>
   <body>
@@ -47,6 +49,14 @@
     <p id="empty" class="muted">None. Open a product with the arrow button in the dashboard to add one.</p>
 
     <h2>Tracking from AliExpress</h2>
+    <label class="check">
+      <input type="checkbox" id="auto" />
+      Look for new tracking by itself, every 3 hours while Chrome is open
+    </label>
+    <p id="autoInfo" class="muted"></p>
+    <div class="row" style="margin-top: 0; margin-bottom: 8px">
+      <button id="checkNow" title="Open your AliExpress orders in a background tab and read any new tracking now">Check now</button>
+    </div>
     <ul id="tracking"></ul>
     <p id="trackingEmpty" class="muted">Nothing yet. Open your AliExpress orders page: synced orders that have a Track status link are read automatically.</p>
     <div class="row">
