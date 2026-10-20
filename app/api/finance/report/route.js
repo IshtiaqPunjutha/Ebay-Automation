@@ -3,7 +3,7 @@ import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 import { isUnlocked } from "@/lib/pin";
 import { monthRange, summarizeMonth } from "@/lib/finance";
 import { fetchTransactionsInRange, isTokenExpired, refreshAccessToken } from "@/lib/ebay";
-import { getAliCosts, getOrderRefs, getPartnership, listEbayStores, updateStoreAccessToken } from "@/lib/store";
+import { getAliCosts, getExpenses, getManualCosts, getOrderRefs, getPartnership, getPayments, listEbayStores, updateStoreAccessToken } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -34,12 +34,16 @@ export async function GET(request) {
           const refreshed = await refreshAccessToken(record.tokens.refreshToken);
           record = await updateStoreAccessToken(userId, s.storeId, refreshed.accessToken, refreshed.expiresIn);
         }
-        const [transactions, refs, costs] = await Promise.all([
+        const [transactions, refs, costs, manualCosts, expenses, allPayments] = await Promise.all([
           fetchTransactionsInRange(record.tokens.accessToken, range.from, range.to),
           getOrderRefs(userId, s.storeId),
           getAliCosts(userId, s.storeId),
+          getManualCosts(userId, s.storeId),
+          getExpenses(userId, s.storeId, month),
+          getPayments(userId, s.storeId),
         ]);
-        return { ...base, report: summarizeMonth(transactions, refs, costs, partnership.vaPercent, month) };
+        const payments = allPayments.filter((p) => p.month === month);
+        return { ...base, report: summarizeMonth(transactions, refs, costs, partnership.vaPercent, month, { manualCosts, expenses, payments }) };
       } catch (err) {
         console.error(`Finance report failed for store ${s.storeId}:`, err);
         return { ...base, error: err.code === "invalid_grant" ? "This eBay connection needs to be authorized again." : "Could not read this store's transactions from eBay." };

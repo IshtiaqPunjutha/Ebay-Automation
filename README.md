@@ -156,3 +156,13 @@ store has its own split ("VA gets 40%", owner gets the rest), saved with **Save 
 - Costs in a different currency than the earnings are not converted; they are reported and left out.
 
 _Finance page: redeploy trigger._
+
+### Finance extras (per store, PIN protected)
+
+- **Typed cost**: in the orders table of a store's Finance page, "Add cost" / "Edit" sets the AliExpress cost of one
+  eBay order by hand. It replaces the extension's figure for that order; "Remove mine" brings the extension's back.
+- **Extra expenses**: costs eBay does not know about (tools, packaging ...), added with a date inside the month. They
+  are taken off the profit, so both partners share them.
+- **VA payments**: record what you paid the VA for a month. The page shows what is owed, paid and still to pay.
+- Money is added in whole pence, months and days follow UK time (set `FINANCE_TIMEZONE` to change it), and
+  **Check against eBay** compares every order with the orders page's own figure.

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, CircleAlert, Copy, Landmark, LoaderCircle, Lock } from "lucide-react";
+import { CostCell, ExpensesPanel, PaymentsPanel } from "./FinanceExtras";
 
 const money = (value, currency) => {
   const n = Number(value) || 0;
@@ -112,7 +113,7 @@ function PinGate({ hasPin, onUnlocked }) {
   );
 }
 
-function StoreCard({ entry, onSavePercent, single, month }) {
+function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
   const { report, partnership } = entry;
   const [draft, setDraft] = useState(String(partnership.vaPercent));
   const [saving, setSaving] = useState(false);
@@ -193,12 +194,18 @@ function StoreCard({ entry, onSavePercent, single, month }) {
               <div className="stat-hint">Ad fees etc.</div>
             </div>
             <div className="stat-card">
+              <div className="stat-label">Extra expenses</div>
+              <div className="stat-value">{money(report.expensesTotal, report.currency)}</div>
+              <div className="stat-hint">Added by you</div>
+            </div>
+            <div className="stat-card">
               <div className="stat-label">Profit</div>
               <div className="stat-value">{money(report.profit, report.currency)}</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">VA share ({partnership.vaPercent}%)</div>
               <div className="stat-value">{money(report.split.va, report.currency)}</div>
+              <div className="stat-hint">Paid {money(report.vaPaid, report.currency)}</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">Owner share ({partnership.ownerPercent}%)</div>
@@ -273,6 +280,7 @@ function StoreCard({ entry, onSavePercent, single, month }) {
                     <th>Earned</th>
                     <th>AliExpress cost</th>
                     <th>Other charges</th>
+                    <th>Expenses</th>
                     <th>Profit</th>
                     <th>Running profit</th>
                   </tr>
@@ -282,7 +290,7 @@ function StoreCard({ entry, onSavePercent, single, month }) {
                     let running = 0;
                     return report.days.map((d) => {
                       running = Math.round((running + d.profit) * 100) / 100;
-                      const empty = d.orders === 0 && d.otherCharges === 0;
+                      const empty = d.orders === 0 && d.otherCharges === 0 && !d.expenses;
                       return (
                         <tr key={d.date} style={empty ? { opacity: 0.5 } : undefined}>
                           <td className="mono">{d.date.slice(8, 10)} {new Date(d.date + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}</td>
@@ -290,6 +298,7 @@ function StoreCard({ entry, onSavePercent, single, month }) {
                           <td>{empty ? "–" : money(d.earnings, report.currency)}</td>
                           <td>{empty ? "–" : money(d.cost, report.currency)}</td>
                           <td>{d.otherCharges ? money(d.otherCharges, report.currency) : "–"}</td>
+                          <td>{d.expenses ? money(d.expenses, report.currency) : "–"}</td>
                           <td>{empty ? "–" : money(d.profit, report.currency)}</td>
                           <td>{money(running, report.currency)}</td>
                         </tr>
@@ -302,6 +311,7 @@ function StoreCard({ entry, onSavePercent, single, month }) {
                     <td>{money(report.earnings, report.currency)}</td>
                     <td>{money(report.cost, report.currency)}</td>
                     <td>{money(report.otherCharges, report.currency)}</td>
+                    <td>{money(report.expensesTotal, report.currency)}</td>
                     <td>{money(report.profit, report.currency)}</td>
                     <td></td>
                   </tr>
@@ -334,7 +344,7 @@ function StoreCard({ entry, onSavePercent, single, month }) {
                         </span>
                       </td>
                       <td>{money(o.net, report.currency)}</td>
-                      <td>{o.cost === null ? <span className="text-muted">no cost yet</span> : money(o.cost, report.currency)}</td>
+                      <td><CostCell order={o} currency={report.currency} onSave={(orderId, amount) => onMutate("manual-cost", "PUT", entry.storeId, { orderId, amount })} /></td>
                       <td>{money(o.profit, report.currency)}</td>
                     </tr>
                   ))}
@@ -342,6 +352,8 @@ function StoreCard({ entry, onSavePercent, single, month }) {
               </table>
             </div>
           )}
+          <ExpensesPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
+          <PaymentsPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
         </>
       )}
     </div>
@@ -422,6 +434,22 @@ export default function FinanceView({ storeId }) {
     return "";
   }
 
+  // Saves one of the hand-entered figures (manual cost, expense, payment), then reloads the month.
+  async function mutate(kind, method, storeId, payload) {
+    const res = await fetch(`/api/finance/${kind}?store=${encodeURIComponent(storeId)}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (body.locked) setGate("locked");
+      return body.error || "Could not save.";
+    }
+    await load();
+    return "";
+  }
+
   if (gate === "loading") return <div className="skeleton" style={{ height: 120, maxWidth: 360, margin: "40px auto" }} />;
   if (gate === "locked") return <PinGate hasPin={hasPin} onUnlocked={() => { setHasPin(true); setGate("open"); }} />;
 
@@ -466,7 +494,7 @@ export default function FinanceView({ storeId }) {
       )}
 
       {data?.stores.map((entry) => (
-        <StoreCard key={entry.storeId} entry={entry} onSavePercent={savePercent} single={Boolean(storeId)} month={month} />
+        <StoreCard key={entry.storeId} entry={entry} onSavePercent={savePercent} single={Boolean(storeId)} month={month} onMutate={mutate} />
       ))}
       {data && data.stores.length === 0 && <p className="text-muted">No store connected yet.</p>}
     </div>
