@@ -188,6 +188,6 @@ free plan only runs it once a day).
 ### Delivery status from AliExpress (extension 1.5.0)
 
 The extension already opens each synced order's AliExpress tracking page; it now also reads the newest event. A parcel
-that is not delivered is read again about every 8 hours (while Chrome is open and logged in to AliExpress). When the page
+that is not delivered is read again in every automatic check, about every 3 hours (while Chrome is open and logged in to AliExpress). When the page
 says **Delivered**, the dashboard stores it and marks the eBay order delivered; an eBay order with several AliExpress
 parcels is marked only when all of them are delivered. The manual "Mark delivered" button stays as the fallback.
