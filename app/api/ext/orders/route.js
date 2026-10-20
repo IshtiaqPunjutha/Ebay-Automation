@@ -37,11 +37,15 @@ export async function GET(request) {
       store = await updateStoreAccessToken(userId, storeId, refreshed.accessToken, refreshed.expiresIn);
     }
 
-    const [orders, refs, sheet] = await Promise.all([
+    // &shipped=1 adds already dispatched orders (flagged shipped), so older purchases can be linked too.
+    const withShipped = searchParams.get("shipped") === "1";
+    const [fresh, dispatched, refs, sheet] = await Promise.all([
       fetchNewOrdersLight(store.tokens.accessToken),
+      withShipped ? fetchNewOrdersLight(store.tokens.accessToken, { status: "dispatched", max: 300 }) : Promise.resolve([]),
       getOrderRefs(userId, storeId),
       getStoreSheet(userId, storeId),
     ]);
+    const orders = [...fresh, ...dispatched];
     const candidates = buildCandidates(orders, refs, sheet.rows, { includeDone: searchParams.get("all") === "1" });
     return NextResponse.json({ storeId, storeLabel: store.label, orders: candidates });
   } catch (err) {

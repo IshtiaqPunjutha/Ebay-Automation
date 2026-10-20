@@ -275,7 +275,7 @@ async function getCandidates() {
   const lists = await Promise.all(
     (stores.data.stores || []).map(async (store) => ({
       store,
-      res: await api(`/api/ext/orders?store=${encodeURIComponent(store.storeId)}`),
+      res: await api(`/api/ext/orders?store=${encodeURIComponent(store.storeId)}&shipped=1`),
     }))
   );
 
@@ -291,6 +291,7 @@ async function getCandidates() {
         storeId: store.storeId,
         storeLabel: store.label,
         orderId: order.orderId,
+        shipped: Boolean(order.shipped),
         buyer: order.buyer || "",
         title: order.title || "",
         items: order.items || [],

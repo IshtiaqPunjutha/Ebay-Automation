@@ -334,6 +334,7 @@
         entry.buyer,
         entry.bestGuess ? "best guess" : "",
         entry.sameProduct ? "same product" : "",
+        entry.shipped ? "already shipped" : "",
         entry.source === "arrow" ? "opened from arrow" : "",
       ]
         .filter(Boolean)
@@ -442,15 +443,18 @@
     // Sync straight away only when exactly one eBay order has this product. With two or more
     // (the same product sold twice) it cannot know which one, so it asks, same-product orders first.
     const card = cardInfo(node);
+    // Orders eBay already shipped are only offered in the list, never picked automatically: an old
+    // order of the same product must not steal a new purchase.
     const matches = lib.matchesByProduct(choices, card.itemIds);
-    if (matches.length === 1) return sync(button, id, node, matches[0]);
+    const freshMatches = matches.filter((m) => !m.shipped);
+    if (freshMatches.length === 1) return sync(button, id, node, freshMatches[0]);
 
     // Rank by how well each order fits the card (title words, chosen size/colour), then by
     // arrow / newest. Same-product orders always come first.
     const rank = (list) =>
       list
         .map((entry) => ({ ...entry, score: lib.scoreAgainstCard(entry, card.text) }))
-        .sort((a, b) => b.score - a.score || (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
+        .sort((a, b) => (a.shipped ? 1 : 0) - (b.shipped ? 1 : 0) || b.score - a.score || (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
     const matchedKeys = new Set(matches.map((m) => `${m.storeId}|${m.orderId}`));
     const same = rank(matches).map((m) => ({ ...m, sameProduct: true }));
     const rest = rank(choices.filter((c) => !matchedKeys.has(`${c.storeId}|${c.orderId}`)));
