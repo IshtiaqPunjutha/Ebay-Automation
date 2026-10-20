@@ -264,6 +264,7 @@ function StoreCard({ entry, onSavePercent, single }) {
               <table className="review-table">
                 <thead>
                   <tr>
+                    <th>Date</th>
                     <th>eBay order</th>
                     <th>Earned</th>
                     <th>AliExpress cost</th>
@@ -273,6 +274,7 @@ function StoreCard({ entry, onSavePercent, single }) {
                 <tbody>
                   {report.orders.map((o) => (
                     <tr key={o.orderId}>
+                      <td className="mono">{o.date ? new Date(o.date + "T00:00:00Z").toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" }) : "–"}</td>
                       <td>
                         <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                           <Link href={`/stores/${entry.storeId}/dispatched?order=${encodeURIComponent(o.orderId)}`} className="link-accent" title="Open this order in the store's orders">
