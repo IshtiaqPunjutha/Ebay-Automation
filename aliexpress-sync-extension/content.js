@@ -119,18 +119,73 @@
   const BTN_STYLE =
     "margin-left:10px;padding:2px 10px;border:none;border-radius:12px;background:#2a78d6;color:#fff;font:600 12px/18px Arial,sans-serif;cursor:pointer;vertical-align:middle;white-space:nowrap;";
 
-  const state = { pending: [], synced: {}, configured: true };
+  const state = { pending: [], synced: {}, tracked: {}, configured: true };
 
   async function refreshState() {
     const res = await send({ type: "GET_STATE" });
     if (res?.ok) {
       state.pending = res.pending;
       state.synced = res.synced;
+      state.tracked = res.tracked || {};
       state.configured = res.configured;
     }
   }
 
-  const onOrderPage = () => /order/i.test(location.pathname) || lib.orderIdsFromUrl(location.search).length > 0;
+  const isTrackingPage = () => /\/p\/tracking\//i.test(location.pathname);
+  const onOrderPage = () => !isTrackingPage() && (/order/i.test(location.pathname) || lib.orderIdsFromUrl(location.search).length > 0);
+
+  // ---- 3. Tracking numbers ------------------------------------------------------
+  // On the order list, orders that have tracking show a "Track status" link. For orders that are
+  // synced to the dashboard and whose tracking has not been read yet, ask the background worker
+  // to open that link in a background tab; the tracking page itself (below) reads the number.
+  const askedForTracking = new Set();
+  function requestTracking() {
+    for (const link of document.querySelectorAll('a[href*="/p/tracking/"]')) {
+      const aliOrderId = lib.trackingOrderIdFromUrl(link.href);
+      if (!aliOrderId || !state.synced[aliOrderId] || state.tracked[aliOrderId] || askedForTracking.has(aliOrderId)) continue;
+      askedForTracking.add(aliOrderId);
+      send({ type: "FETCH_TRACKING", aliOrderId, url: link.href });
+    }
+  }
+
+  // The first line of an element's text, e.g. "In transit" or "Delivery: Oct 28 - 30".
+  const firstLine = (node) =>
+    (node?.innerText || node?.textContent || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .find(Boolean) || "";
+
+  // The tracking page: the number is in <span class="logistic-info-v2--mailNoValue--…"> and the
+  // shipping service in <div class="logistic-info-v2--carrier--…"> (class names end in a changing
+  // suffix, so they are matched by their start).
+  function readTrackingPage() {
+    const aliOrderId = lib.trackingOrderIdFromUrl(location.href);
+    const trackingNumber = lib.cleanTrackingNumber(document.querySelector('[class*="logistic-info-v2--mailNoValue"]')?.textContent);
+    if (!aliOrderId || !trackingNumber) return null;
+    return {
+      aliOrderId,
+      trackingNumber,
+      carrierText: firstLine(document.querySelector('[class*="logistic-info-v2--carrier"]')),
+      statusText: firstLine(document.querySelector('[class*="logistic-info-v2--trackWrap"]')),
+      estimateText: firstLine(document.querySelector('[class*="arrival-time"]')),
+    };
+  }
+
+  function runTrackingPage() {
+    let tries = 0;
+    const timerId = setInterval(async () => {
+      tries += 1;
+      if (dead || tries > 50) return clearInterval(timerId); // 50 x 0.5s: the page may load slowly
+      const data = readTrackingPage();
+      if (!data) return;
+      clearInterval(timerId);
+      const res = await send({ type: "TRACKING_FOUND", ...data });
+      // Only say something if a person is looking at this page (not in our background tab).
+      if (document.visibilityState === "visible") {
+        toast(res?.ok ? `Tracking ${data.trackingNumber} saved to the dashboard.` : res?.error || "Could not save the tracking.", !res?.ok);
+      }
+    }, 500);
+  }
 
   // The smallest elements whose text holds an order number, e.g. the
   // <div>Ref. Number : 3077062172300812<span>Copy</span></div> of an order card.
@@ -400,6 +455,7 @@
           await refreshState();
         }
         addButtons();
+        requestTracking();
         const summary = `refs=${lib.orderIdsFromText(document.body.innerText).length} buttons=${document.querySelectorAll(`[${BTN_ATTR}]`).length}`;
         if (summary !== lastLog) {
           lastLog = summary;
@@ -435,6 +491,10 @@
     });
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
-  else start();
+  const begin = () => {
+    if (isTrackingPage()) runTrackingPage();
+    start();
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", begin, { once: true });
+  else begin();
 })();

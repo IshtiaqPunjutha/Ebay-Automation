@@ -61,7 +61,7 @@ function agoLabel(days) {
 // AliExpress order number(s) bought for an eBay order. Shown as chips (click to
 // copy, x to remove) with an inline box to add another; separate several
 // numbers with spaces or commas.
-function AliOrderCell({ ids, onSave, disabled }) {
+function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [problem, setProblem] = useState("");
@@ -85,22 +85,50 @@ function AliOrderCell({ ids, onSave, disabled }) {
 
   return (
     <div className="ali-order-cell">
-      {ids.map((id) => (
-        <div key={id} className="ali-order-chip">
-          <span className="mono">{id}</span>
-          <CopyButton text={id} label="Copy AliExpress order number" />
-          <button
-            type="button"
-            className="chip-remove"
-            onClick={() => onSave(ids.filter((v) => v !== id))}
-            title="Remove this number"
-            aria-label={`Remove ${id}`}
-            disabled={disabled}
-          >
-            ×
-          </button>
-        </div>
-      ))}
+      {ids.map((id) => {
+        const track = tracking[id];
+        return (
+          <div key={id} className="ali-order-item">
+            <div className="ali-order-chip">
+              <span className="mono">{id}</span>
+              <CopyButton text={id} label="Copy AliExpress order number" />
+              <button
+                type="button"
+                className="chip-remove"
+                onClick={() => onSave(ids.filter((v) => v !== id))}
+                title="Remove this number"
+                aria-label={`Remove ${id}`}
+                disabled={disabled}
+              >
+                ×
+              </button>
+            </div>
+            {/* Tracking the extension read from AliExpress for this order. */}
+            {track?.trackingNumber && (
+              <div className="ali-track">
+                <Truck strokeWidth={2} />
+                <span className="mono">{track.trackingNumber}</span>
+                <CopyButton text={track.trackingNumber} label="Copy tracking number" />
+                <a
+                  className="icon-btn copy-icon"
+                  href={`https://t.17track.net/en#nums=${encodeURIComponent(track.trackingNumber)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Track this parcel"
+                  aria-label="Track this parcel"
+                >
+                  <ArrowUpRight strokeWidth={2} />
+                </a>
+                {(track.carrierText || track.statusText) && (
+                  <div className="item-meta" style={{ flexBasis: "100%" }}>
+                    {[track.carrierText, track.statusText].filter(Boolean).join(" · ")}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
       {adding ? (
         <div>
           <input
@@ -476,8 +504,24 @@ export default function OrdersView({ status = "new" }) {
     }
   }
 
+  // AliExpress order number -> tracking the extension read from AliExpress.
+  const [tracking, setTracking] = useState({});
+
+  async function loadTracking() {
+    try {
+      const res = await fetch(`/api/ebay/tracking?store=${encodeURIComponent(storeId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setTracking(data.tracking || {});
+    } catch (e) {
+      // Tracking simply does not show if it cannot be read.
+    }
+  }
+
   useEffect(() => {
-    if (storeId) loadOrderRefs();
+    if (!storeId) return;
+    loadOrderRefs();
+    loadTracking();
   }, [storeId]);
 
   async function saveOrderRef(orderId, aliOrderIds) {
@@ -718,6 +762,7 @@ export default function OrdersView({ status = "new" }) {
             loadOrders();
             loadSheetLinks();
             loadOrderRefs();
+            loadTracking();
           }}
           className="btn btn-secondary"
           disabled={loading}
@@ -984,6 +1029,7 @@ export default function OrdersView({ status = "new" }) {
                               {idx === 0 && (
                                 <AliOrderCell
                                   ids={orderRefs[order.orderId]?.aliOrderIds || []}
+                                  tracking={tracking}
                                   onSave={(ids) => saveOrderRef(order.orderId, ids)}
                                   disabled={savingRef}
                                 />

@@ -112,7 +112,28 @@
     }
   }
 
-  const api = { orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, scoreAgainstCard, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };
+  // AliExpress's tracking page: https://www.aliexpress.com/p/tracking/index.html?...&tradeOrderId=3077...
+  // The tradeOrderId in it is the order's "Ref. Number". Returns "" for anything else.
+  function trackingOrderIdFromUrl(url) {
+    try {
+      const u = new URL(url);
+      const host = u.hostname.toLowerCase();
+      const ok = u.protocol === "https:" && (host === "aliexpress.com" || host.endsWith(".aliexpress.com") || host.endsWith(".aliexpress.us"));
+      if (!ok || !/\/p\/tracking\//i.test(u.pathname)) return "";
+      const id = u.searchParams.get("tradeOrderId") || u.searchParams.get("orderId") || "";
+      return /^\d{12,20}$/.test(id) ? id : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // A courier tracking number: letters and digits only, no spaces.
+  function cleanTrackingNumber(text) {
+    const value = String(text || "").replace(/\s+/g, "");
+    return /^[A-Za-z0-9]{6,40}$/.test(value) ? value : "";
+  }
+
+  const api = { trackingOrderIdFromUrl, cleanTrackingNumber, orderIdsFromText, orderIdsFromUrl, itemIdFromUrl, scoreAgainstCard, matchesByProduct, matchByProduct, pickPending, mergeChoices, originOf };
   root.AliSyncLib = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

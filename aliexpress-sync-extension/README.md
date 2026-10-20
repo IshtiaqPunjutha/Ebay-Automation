@@ -24,6 +24,12 @@ Sends your AliExpress order numbers to the matching eBay order in the dashboard.
 
 You do not have to use the arrow: the extension asks the dashboard which eBay orders still need a number, so it also works when the dashboard and AliExpress are in different browsers (install the extension, with its token, in the browser where AliExpress is).
 
+## Tracking numbers
+
+On the AliExpress orders list, orders that have tracking show a **Track status** link. For orders that are already synced to the dashboard, the extension opens that link in a background tab (it closes itself), reads the tracking number from the tracking page, and sends it to the dashboard. The number then shows **under the AliExpress order number** in the dashboard (with a copy button and a 17TRACK link). If you open a tracking page yourself, the number is sent too.
+
+It needs Chrome open with the AliExpress orders page loaded; it only looks at synced orders, tries each order once (again after 3 hours if nothing was read), and never changes anything on AliExpress.
+
 ## Notes
 
 - The Sync button is placed next to the "Ref. Number: 3077062172300812" shown on each AliExpress

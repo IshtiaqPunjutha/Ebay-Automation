@@ -86,6 +86,95 @@ async function reconcileSynced(force = false) {
   await chrome.storage.local.set({ synced: next });
 }
 
+// ---- AliExpress tracking ------------------------------------------------------
+// The order list shows a "Track status" link for orders that have tracking. For orders that are
+// synced to the dashboard, that link is opened in a background tab, the tracking page's content
+// script reads the number, and it is uploaded to the dashboard (shown under the order's number).
+const TRACK_RETRY_MS = 3 * 60 * 60 * 1000; // try an order again after 3 hours if nothing was read
+const TRACK_TAB_TIMEOUT_MS = 30 * 1000;
+const trackQueue = [];
+const trackActive = new Set(); // orders waiting in the queue or being read right now
+let trackRunning = false;
+const trackTabs = new Map(); // tab id -> function that ends that job
+
+async function getTrackState() {
+  const { trackState } = await chrome.storage.local.get("trackState");
+  return trackState || {};
+}
+
+async function patchTrackState(aliOrderId, patch) {
+  const all = await getTrackState();
+  all[aliOrderId] = { ...(all[aliOrderId] || {}), ...patch };
+  await chrome.storage.local.set({ trackState: all });
+}
+
+async function uploadTracking(data) {
+  const result = await api("/api/ext/tracking", { method: "POST", body: JSON.stringify(data) });
+  if (result.ok) {
+    await patchTrackState(data.aliOrderId, { trackingNumber: data.trackingNumber, uploadedAt: Date.now() });
+  } else {
+    await patchTrackState(data.aliOrderId, { attemptAt: Date.now(), lastError: result.error });
+  }
+  return result;
+}
+
+function openAndRead(job) {
+  return new Promise((resolve) => {
+    let tabId = null;
+    let finished = false;
+    const finish = (ok) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (tabId !== null) {
+        trackTabs.delete(tabId);
+        chrome.tabs.remove(tabId).catch(() => {});
+      }
+      resolve(ok);
+    };
+    const timer = setTimeout(async () => {
+      await patchTrackState(job.aliOrderId, { attemptAt: Date.now() });
+      finish(false);
+    }, TRACK_TAB_TIMEOUT_MS);
+    chrome.tabs
+      .create({ url: job.url, active: false })
+      .then((tab) => {
+        tabId = tab.id;
+        trackTabs.set(tab.id, finish);
+        if (finished) chrome.tabs.remove(tab.id).catch(() => {});
+      })
+      .catch(() => finish(false));
+  });
+}
+
+async function runTrackQueue() {
+  if (trackRunning) return;
+  trackRunning = true;
+  try {
+    while (trackQueue.length) {
+      const job = trackQueue.shift();
+      await openAndRead(job);
+      trackActive.delete(job.aliOrderId);
+      await new Promise((r) => setTimeout(r, 1500)); // be gentle with AliExpress
+    }
+  } finally {
+    trackRunning = false;
+  }
+}
+
+async function enqueueTracking(aliOrderId, url) {
+  // Only an AliExpress tracking link whose order number matches may be opened.
+  if (AliSyncLib.trackingOrderIdFromUrl(url) !== String(aliOrderId)) return { ok: false, error: "Not an AliExpress tracking link" };
+  const state = (await getTrackState())[aliOrderId] || {};
+  if (state.uploadedAt) return { ok: true, skipped: "already uploaded" };
+  if (state.attemptAt && Date.now() - state.attemptAt < TRACK_RETRY_MS) return { ok: true, skipped: "tried recently" };
+  if (trackActive.has(String(aliOrderId))) return { ok: true, skipped: "already queued or open" };
+  trackActive.add(String(aliOrderId));
+  trackQueue.push({ aliOrderId: String(aliOrderId), url });
+  runTrackQueue();
+  return { ok: true, queued: true };
+}
+
 // eBay orders that still need an AliExpress number, asked of the dashboard for every
 // connected store. Kept for a short while so pressing Sync on several orders in a row
 // does not ask eBay each time.
@@ -131,8 +220,27 @@ async function getCandidates() {
   return result;
 }
 
-async function handle(message) {
+async function handle(message, sender) {
   switch (message?.type) {
+    case "FETCH_TRACKING":
+      return await enqueueTracking(message.aliOrderId, message.url);
+    case "TRACKING_FOUND": {
+      // Sent by the tracking page's content script, from a background tab we opened or from a
+      // page the person opened themselves; both are uploaded.
+      const number = AliSyncLib.cleanTrackingNumber(message.trackingNumber);
+      const aliOrderId = String(message.aliOrderId || "");
+      if (!number || !/^\d{12,20}$/.test(aliOrderId)) return { ok: false, error: "Nothing usable on this tracking page" };
+      const result = await uploadTracking({
+        aliOrderId,
+        trackingNumber: number,
+        carrierText: message.carrierText || "",
+        statusText: message.statusText || "",
+        estimateText: message.estimateText || "",
+      });
+      const end = sender?.tab?.id !== undefined ? trackTabs.get(sender.tab.id) : null;
+      if (end) end(result.ok); // the tab we opened for this job has done its work
+      return result;
+    }
     case "GET_CANDIDATES":
       return await getCandidates();
     case "ADD_PENDING":
@@ -156,11 +264,15 @@ async function handle(message) {
       }
       const settings = await getSettings();
       const { synced } = await chrome.storage.local.get("synced");
+      const trackState = await getTrackState();
+      const tracked = {};
+      for (const [id, value] of Object.entries(trackState)) if (value.uploadedAt) tracked[id] = true;
       return {
         ok: true,
         configured: Boolean(AliSyncLib.originOf(settings.dashboardUrl) && settings.token),
         pending: await getPending(),
         synced: synced || {},
+        tracked,
       };
     }
     case "TEST":
@@ -205,7 +317,7 @@ async function handle(message) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  handle(message)
+  handle(message, sender)
     .then(sendResponse)
     .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
   return true; // answer asynchronously
