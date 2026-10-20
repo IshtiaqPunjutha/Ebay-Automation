@@ -1177,7 +1177,6 @@ export default function OrdersView({ status = "new" }) {
                     <th>Item</th>
                     <th>Order</th>
                     {status === "dispatched" && <th>Status</th>}
-                    <th className="num">Qty</th>
                     <th className="num" title={`What the buyer paid, and what you earn after eBay's fees${singleCurrency ? ` (${singleCurrency})` : ""}`}>
                       Total / Earned
                     </th>
@@ -1275,6 +1274,10 @@ export default function OrdersView({ status = "new" }) {
                                   <div className="item-meta">
                                     {li.sku && <span className="mono">SKU {li.sku}</span>}
                                     {variantText && <span>{variantText}</span>}
+                                    {/* The quantity sits with the variation, bold: "Colour: Black × 2". */}
+                                    <strong className={`qty-tag${li.quantity > 1 ? " qty-many" : ""}`} title="Quantity ordered">
+                                      × {li.quantity}
+                                    </strong>
                                   </div>
                                   {status === "new" && (
                                     <div className="row-actions">
@@ -1325,7 +1328,6 @@ export default function OrdersView({ status = "new" }) {
                               )}
                             </td>
                             {status === "dispatched" && statusCell}
-                            <td className="num mono">{li.quantity}</td>
                             {/* Total and earnings share one narrow column: the total on top, what you earn (green) below. */}
                             <td className="num mono money-cell">
                               {idx === 0 && (

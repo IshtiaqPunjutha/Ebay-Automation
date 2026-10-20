@@ -2245,3 +2245,19 @@ a.list-row:hover,
   font-size: 12.5px;
   margin-top: 2px;
 }
+
+/* Quantity next to the variation: "Colour: Black × 2" (red-ish when more than one so it is not missed) */
+.qty-tag {
+  margin-left: 6px;
+  color: var(--text-primary);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.qty-tag.qty-many {
+  color: var(--danger);
+}
+
+.item-meta .qty-tag:first-child {
+  margin-left: 0;
+}
