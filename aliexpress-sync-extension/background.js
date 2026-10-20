@@ -133,7 +133,10 @@ function openAndRead(job) {
       resolve(ok);
     };
     const timer = setTimeout(async () => {
-      await patchTrackState(job.aliOrderId, { attemptAt: Date.now() });
+      await patchTrackState(job.aliOrderId, {
+        attemptAt: Date.now(),
+        lastError: "Nothing was read from the tracking page (it may not have finished loading, or you may need to log in to AliExpress).",
+      });
       finish(false);
     }, TRACK_TAB_TIMEOUT_MS);
     chrome.tabs
@@ -224,6 +227,22 @@ async function handle(message, sender) {
   switch (message?.type) {
     case "FETCH_TRACKING":
       return await enqueueTracking(message.aliOrderId, message.url);
+    case "TRACK_STATUS": {
+      // For the popup: what happened to each order's tracking, newest first.
+      const all = await getTrackState();
+      const list = Object.entries(all)
+        .map(([aliOrderId, v]) => ({ aliOrderId, ...v }))
+        .sort((a, b) => (b.uploadedAt || b.attemptAt || 0) - (a.uploadedAt || a.attemptAt || 0))
+        .slice(0, 12);
+      return { ok: true, list };
+    }
+    case "TRACK_RETRY": {
+      // Let every order whose tracking was not read be tried again the next time its page is open.
+      const all = await getTrackState();
+      for (const v of Object.values(all)) if (!v.uploadedAt) delete v.attemptAt;
+      await chrome.storage.local.set({ trackState: all });
+      return { ok: true };
+    }
     case "TRACKING_FOUND": {
       // Sent by the tracking page's content script, from a background tab we opened or from a
       // page the person opened themselves; both are uploaded.

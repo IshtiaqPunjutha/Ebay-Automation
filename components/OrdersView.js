@@ -4,6 +4,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ZoomThumb from "./ZoomThumb";
+import SendTrackingDialog from "./SendTrackingDialog";
+import { checkReadyToShip } from "@/lib/shipping";
 import { ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Loader, PackageSearch, Phone, RefreshCw, Search, Truck } from "lucide-react";
 
 // The numeric item id inside an eBay listing link (…/itm/123456789012).
@@ -518,10 +520,60 @@ export default function OrdersView({ status = "new" }) {
     }
   }
 
+  // Tracking this dashboard already sent to eBay (so it is never offered twice), the orders ticked
+  // for sending, and the review screen.
+  const [sentTracking, setSentTracking] = useState({});
+  const [selected, setSelected] = useState(() => new Set());
+  const [showSend, setShowSend] = useState(false);
+  // The review screen works from the list as it was when it opened: after a send the page refreshes
+  // behind it and the shipped orders leave "new", which must not make the results disappear.
+  const [reviewSnapshot, setReviewSnapshot] = useState([]);
+
+  async function loadSent() {
+    try {
+      const res = await fetch(`/api/ebay/ship?store=${encodeURIComponent(storeId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSentTracking(data.sent || {});
+    } catch (e) {
+      // Without it every order simply looks unsent; the server still refuses a repeat.
+    }
+  }
+
+  function toggleSelected(orderId) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }
+
+  function handleSent(okIds) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      okIds.forEach((id) => next.delete(id));
+      return next;
+    });
+    loadSent();
+    loadOrders(); // shipped orders leave the "new" list
+  }
+
   useEffect(() => {
     if (!storeId) return;
     loadOrderRefs();
     loadTracking();
+    loadSent();
+    // The extension adds AliExpress numbers and tracking from another tab; pick them up
+    // when this tab is looked at again instead of making a person press Refresh.
+    function onVisible() {
+      if (document.visibilityState === "visible") {
+        loadOrderRefs();
+        loadTracking();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [storeId]);
 
   async function saveOrderRef(orderId, aliOrderIds) {
@@ -718,6 +770,33 @@ export default function OrdersView({ status = "new" }) {
   );
   const singleCurrency = currenciesOnPage.size === 1 ? [...currenciesOnPage][0] : "";
 
+  // New orders whose AliExpress tracking is in and that can be sent to eBay (same rule as the server).
+  const readyOf = (order) => (status === "new" ? checkReadyToShip(order.orderId, orderRefs, tracking, sentTracking) : { ok: false });
+  const readyOrders = visibleOrders.filter((order) => readyOf(order).ok);
+  const selectedReady = readyOrders.filter((order) => selected.has(order.orderId));
+  const allReadySelected = readyOrders.length > 0 && selectedReady.length === readyOrders.length;
+
+  function toggleAllReady() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allReadySelected) readyOrders.forEach((o) => next.delete(o.orderId));
+      else readyOrders.forEach((o) => next.add(o.orderId));
+      return next;
+    });
+  }
+
+  // What the review screen shows for each ticked order.
+  const reviewItems = selectedReady.map((order) => {
+    const ready = readyOf(order);
+    return {
+      orderId: order.orderId,
+      buyer: order.shipTo?.fullName || order.buyerUsername || "",
+      summary: order.lineItems.map((li) => `${li.quantity} × ${li.title}`).join("; ").slice(0, 140),
+      trackingNumber: ready.trackingNumber,
+      serviceText: ready.carrierText,
+    };
+  });
+
   // Tracking numbers of the orders shown that are not yet delivered; 17TRACK takes up to 40 at once.
   const trackableNumbers = [
     ...new Set(
@@ -852,6 +931,35 @@ export default function OrdersView({ status = "new" }) {
                 aria-label="Search orders on this page"
               />
             </div>
+            {status === "new" && readyOrders.length > 0 && (
+              <>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={toggleAllReady} title="Tick or untick every order on this page whose tracking is ready">
+                  <Check strokeWidth={2.5} />
+                  {allReadySelected ? "Clear selection" : `Select all with tracking (${readyOrders.length})`}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setReviewSnapshot(reviewItems);
+                    setShowSend(true);
+                  }}
+                  disabled={selectedReady.length === 0}
+                  title="Review, then mark the ticked orders as shipped on eBay with their AliExpress tracking"
+                >
+                  <Truck strokeWidth={2} />
+                  Send tracking to eBay ({selectedReady.length})
+                </button>
+              </>
+            )}
+            {showSend && reviewSnapshot.length > 0 && (
+              <SendTrackingDialog
+                items={reviewSnapshot}
+                storeId={storeId}
+                onClose={() => setShowSend(false)}
+                onFinished={handleSent}
+              />
+            )}
             {status === "dispatched" && (
               <>
                 <label className="filter-select">
@@ -930,6 +1038,18 @@ export default function OrdersView({ status = "new" }) {
               <table className="data-table">
                 <thead>
                   <tr>
+                    {status === "new" && (
+                      <th className="check-col">
+                        <input
+                          type="checkbox"
+                          checked={allReadySelected}
+                          onChange={toggleAllReady}
+                          disabled={readyOrders.length === 0}
+                          title={readyOrders.length ? "Tick every order whose tracking is ready" : "No order on this page has tracking ready"}
+                          aria-label="Select all orders with tracking ready"
+                        />
+                      </th>
+                    )}
                     <th>Item</th>
                     <th>Order</th>
                     <th className="num">Qty</th>
@@ -965,6 +1085,24 @@ export default function OrdersView({ status = "new" }) {
                       return (
                         <Fragment key={rowKey}>
                           <tr className={idx > 0 ? "order-cont" : undefined}>
+                            {status === "new" && (
+                              <td className="check-col">
+                                {idx === 0 &&
+                                  (() => {
+                                    const ready = readyOf(order);
+                                    return (
+                                      <input
+                                        type="checkbox"
+                                        checked={ready.ok && selected.has(order.orderId)}
+                                        onChange={() => toggleSelected(order.orderId)}
+                                        disabled={!ready.ok}
+                                        title={ready.ok ? `Send tracking ${ready.trackingNumber} to eBay` : ready.reason}
+                                        aria-label={`Select order ${order.orderId}`}
+                                      />
+                                    );
+                                  })()}
+                              </td>
+                            )}
                             <td>
                               <div className="item-cell">
                                 {li.imageUrl ? (
@@ -1050,6 +1188,15 @@ export default function OrdersView({ status = "new" }) {
                                     </span>
                                   ) : (
                                     <StatusBadge status={order.fulfillmentStatus} />
+                                  )}
+                                  {status === "new" && sentTracking[order.orderId] && (
+                                    <span
+                                      className="badge badge-info"
+                                      title={`Tracking ${sentTracking[order.orderId].trackingNumber} (${sentTracking[order.orderId].carrier}) was sent to eBay`}
+                                    >
+                                      <Truck strokeWidth={2.5} />
+                                      Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}
+                                    </span>
                                   )}
                                   {status === "dispatched" && (
                                     <button

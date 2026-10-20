@@ -105,3 +105,19 @@ npx vercel deploy --prod
 matching eBay order. Create its token in the dashboard under **Account, then Browser extension**,
 and see `aliexpress-sync-extension/README.md` for install and use. It talks to `/api/ext/*`, which
 accepts that token (a hash of it is stored in KV) instead of the login cookie.
+
+## Sending AliExpress tracking to eBay
+
+Orders on the **New orders** page whose AliExpress tracking has been read by the extension get an
+enabled tick box. Tick them (or press **Select all with tracking**) and press **Send tracking to eBay**:
+a review screen lists each order with its tracking number and a carrier choice, and nothing is sent until
+the confirmation box is ticked. Sending marks the order as **shipped on eBay** and tells the buyer; the
+API offers no way to undo that.
+
+The server checks every order again before sending (`/api/ebay/ship`): the tracking must be the one read
+from AliExpress for that order, the order must have exactly one AliExpress order, eBay must still show it
+as not shipped, and the same tracking is never sent twice. Each order gets its own result. Orders with
+several AliExpress orders, or without tracking yet, cannot be ticked.
+
+`EBAY_API_BASE` (optional) points the eBay Fulfillment calls at another host and exists only for testing
+against a fake server.

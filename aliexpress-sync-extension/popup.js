@@ -63,7 +63,45 @@ async function test() {
   }
 }
 
+const ago = (time) => {
+  const minutes = Math.round((Date.now() - time) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
+};
+
+// What happened to each order's tracking: read and sent, or why not.
+async function renderTracking() {
+  const res = await chrome.runtime.sendMessage({ type: "TRACK_STATUS" });
+  const list = res?.list || [];
+  $("trackingEmpty").style.display = list.length ? "none" : "block";
+  const ul = $("tracking");
+  ul.innerHTML = "";
+  for (const item of list) {
+    const li = document.createElement("li");
+    li.style.display = "block";
+    const head = document.createElement("div");
+    const code = document.createElement("code");
+    code.textContent = item.aliOrderId;
+    head.append(code);
+    const detail = document.createElement("div");
+    detail.className = item.uploadedAt ? "ok" : "muted";
+    if (item.uploadedAt) detail.textContent = `✓ ${item.trackingNumber} sent ${ago(item.uploadedAt)}`;
+    else detail.textContent = `Not read ${item.attemptAt ? ago(item.attemptAt) : ""}${item.lastError ? `: ${item.lastError}` : ""}`.trim();
+    li.append(head, detail);
+    ul.append(li);
+  }
+}
+
+$("retry").addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "TRACK_RETRY" });
+  $("retryMsg").textContent = "Done. Now refresh the AliExpress orders page and they will be tried again.";
+  renderTracking();
+});
+
 $("save").addEventListener("click", save);
 $("test").addEventListener("click", test);
 loadSettings();
 renderPending();
+renderTracking();

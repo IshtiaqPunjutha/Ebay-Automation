@@ -1214,6 +1214,78 @@ a.list-row:hover,
   margin-top: 14px;
 }
 
+/* Review screen for sending tracking to eBay */
+.dialog.wide {
+  max-width: 920px;
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.review-scroll {
+  overflow: auto;
+  max-height: 46vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.review-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.review-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.review-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.review-table tr:last-child td {
+  border-bottom: none;
+}
+
+.confirm-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.confirm-line input {
+  margin-top: 3px;
+}
+
+.check-col {
+  width: 34px;
+  padding-right: 0 !important;
+}
+
+.check-col input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.check-col input:disabled {
+  cursor: not-allowed;
+}
+
 /* AliExpress order numbers on an order row */
 .ali-order-cell {
   display: flex;
