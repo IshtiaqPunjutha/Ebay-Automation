@@ -2225,3 +2225,10 @@ a.list-row:hover,
   color: var(--danger);
   font-weight: 600;
 }
+
+/* The AliExpress / image-search buttons sit under the product title now, in a row */
+.item-cell .row-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}

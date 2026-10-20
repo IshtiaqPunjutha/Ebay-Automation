@@ -1183,7 +1183,6 @@ export default function OrdersView({ status = "new" }) {
                     <th>Ship to</th>
                     <th>{status === "dispatched" ? "AliExpress order & tracking" : "AliExpress order"}</th>
                     {status === "new" && <th>Status</th>}
-                    {status === "new" && <th></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1276,6 +1275,38 @@ export default function OrdersView({ status = "new" }) {
                                     {li.sku && <span className="mono">SKU {li.sku}</span>}
                                     {variantText && <span>{variantText}</span>}
                                   </div>
+                                  {status === "new" && (
+                                    <div className="row-actions">
+                                <AliExpressOpen
+                                  links={li.legacyItemId ? aliLinks[li.legacyItemId] : undefined}
+                                  orderId={order.orderId}
+                                  storeId={storeId}
+                                  addressText={fullBlock}
+                                />
+                                {li.imageUrl ? (
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    title="Copy product image and open AliExpress"
+                                    aria-label={`Search AliExpress by image for ${li.title}`}
+                                    disabled={imageSearchPending}
+                                    onClick={() => searchAliExpressByImage(li.imageUrl)}
+                                  >
+                                    <Search strokeWidth={2} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    title="Search AliExpress by product title"
+                                    aria-label={`Search AliExpress by title for ${li.title}`}
+                                    onClick={() => searchAliExpressByTitle(li.title, li.variants)}
+                                  >
+                                    <Search strokeWidth={2} />
+                                  </button>
+                                )}
+                              </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -1343,40 +1374,6 @@ export default function OrdersView({ status = "new" }) {
                               {status === "dispatched" && idx === 0 && <TrackingCell shipments={order.shipments} />}
                             </td>
                             {status === "new" && statusCell}
-                            {status === "new" && (
-                            <td>
-                              <div className="row-actions">
-                                <AliExpressOpen
-                                  links={li.legacyItemId ? aliLinks[li.legacyItemId] : undefined}
-                                  orderId={order.orderId}
-                                  storeId={storeId}
-                                  addressText={fullBlock}
-                                />
-                                {li.imageUrl ? (
-                                  <button
-                                    type="button"
-                                    className="icon-btn"
-                                    title="Copy product image and open AliExpress"
-                                    aria-label={`Search AliExpress by image for ${li.title}`}
-                                    disabled={imageSearchPending}
-                                    onClick={() => searchAliExpressByImage(li.imageUrl)}
-                                  >
-                                    <Search strokeWidth={2} />
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="icon-btn"
-                                    title="Search AliExpress by product title"
-                                    aria-label={`Search AliExpress by title for ${li.title}`}
-                                    onClick={() => searchAliExpressByTitle(li.title, li.variants)}
-                                  >
-                                    <Search strokeWidth={2} />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                            )}
                           </tr>
                         </Fragment>
                       );
