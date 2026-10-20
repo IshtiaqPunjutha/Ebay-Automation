@@ -49,7 +49,10 @@ function storeGroups(storeId) {
   ];
 }
 
-export default function Sidebar({ collapsed, store, onNavigate }) {
+export default function Sidebar({ collapsed, store, onNavigate, counts = {} }) {
+  // Orders still without an AliExpress number: shown as a number next to "New orders" and "Stores".
+  const waitingHere = store ? counts[store.id]?.needsAli || 0 : 0;
+  const waitingAll = Object.values(counts).reduce((n, c) => n + (c.needsAli || 0), 0);
   const pathname = usePathname();
   const groups = store ? storeGroups(store.id) : workspaceGroups();
   const [ordersOpen, setOrdersOpen] = useState(true);
@@ -72,6 +75,14 @@ export default function Sidebar({ collapsed, store, onNavigate }) {
       >
         <Icon strokeWidth={2} />
         <span className="nav-label">{item.label}</span>
+        {(() => {
+          const n = item.label === "New orders" ? waitingHere : item.label === "Stores" ? waitingAll : 0;
+          return n > 0 ? (
+            <span className="nav-count" title={`${n} order${n === 1 ? "" : "s"} still need an AliExpress number`}>
+              {n}
+            </span>
+          ) : null;
+        })()}
       </Link>
     );
   }

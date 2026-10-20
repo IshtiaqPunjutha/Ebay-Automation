@@ -174,3 +174,13 @@ earnings, costs, charges, expenses and the partnership split. A closed month nev
 or the extension says later; VA payments can still be recorded against it. **Reopen month** makes it live again.
 **Closed months** lists every closed month; **Download Excel** gives a workbook for one month (Summary, Days, Orders,
 Other charges, Extra expenses, VA payments) and **Download all as Excel** one row per closed month.
+
+### New-order alerts
+
+While the dashboard is open in a tab, it checks every store for new orders (about every 90 seconds, every 3 minutes
+when the tab is in the background). A new order plays a short chime, shows a browser notification (allow it once)
+and refreshes the open New orders list. The sidebar shows a red number next to **New orders** and **Stores** for
+the orders that still have no AliExpress number, the tab title shows the total, and each such order carries a red
+**New** tag that disappears once its AliExpress number is synced. The bell in the top bar turns the sound on or off.
+This runs in the browser tab: with the dashboard closed nothing is checked (a Vercel cron cannot play a sound, and the
+free plan only runs it once a day).

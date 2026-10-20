@@ -3,7 +3,8 @@
 import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, PanelLeft } from "lucide-react";
+import { Bell, BellOff, ChevronRight, PanelLeft } from "lucide-react";
+import useNewOrderWatch from "./NewOrderWatcher";
 import Sidebar from "./Sidebar";
 import ThemeToggle from "./ThemeToggle";
 
@@ -31,6 +32,8 @@ export default function AppShell({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [storeLabels, setStoreLabels] = useState({});
+  // Looks for new orders in every store while the dashboard is open (chime, notification, counts).
+  const { counts, soundOn, toggleSound } = useNewOrderWatch();
 
   useEffect(() => {
     try {
@@ -81,7 +84,7 @@ export default function AppShell({ children }) {
 
   return (
     <div className={shellClass}>
-      <Sidebar collapsed={collapsed} store={store} onNavigate={() => setDrawerOpen(false)} />
+      <Sidebar collapsed={collapsed} store={store} counts={counts} onNavigate={() => setDrawerOpen(false)} />
       <div className="sidebar-backdrop" onClick={() => setDrawerOpen(false)} />
       <div className="app-body">
         <header className="topbar">
@@ -102,6 +105,16 @@ export default function AppShell({ children }) {
             ))}
           </nav>
           <div className="topbar-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={toggleSound}
+              aria-pressed={soundOn}
+              aria-label={soundOn ? "Turn new-order sound off" : "Turn new-order sound on"}
+              title={soundOn ? "New-order sound is on (click to turn off)" : "New-order sound is off (click to turn on)"}
+            >
+              {soundOn ? <Bell strokeWidth={2} /> : <BellOff strokeWidth={2} />}
+            </button>
             <ThemeToggle compact />
           </div>
         </header>

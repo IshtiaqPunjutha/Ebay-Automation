@@ -515,6 +515,7 @@ export default function OrdersView({ status = "new" }) {
 
   // eBay order id -> AliExpress order numbers entered for it.
   const [orderRefs, setOrderRefs] = useState({});
+  const loadOrdersRef = useRef(null);
   const [savingRef, setSavingRef] = useState(false);
 
   async function loadOrderRefs() {
@@ -745,6 +746,16 @@ export default function OrdersView({ status = "new" }) {
     if (!storeId || !ready) return;
     loadOrders();
   }, [storeId, ready, status, page, pageSize, focusOrder]);
+
+  // The dashboard's new-order watcher found a new order: reload this list so it shows up without a click.
+  loadOrdersRef.current = loadOrders;
+  useEffect(() => {
+    function onNewOrders(e) {
+      if (status === "new" && e.detail?.storeId === storeId) loadOrdersRef.current?.();
+    }
+    window.addEventListener("new-orders", onNewOrders);
+    return () => window.removeEventListener("new-orders", onNewOrders);
+  }, [storeId, status]);
 
   // If orders were shipped meanwhile and the page no longer exists, step back.
   useEffect(() => {
@@ -1187,6 +1198,11 @@ export default function OrdersView({ status = "new" }) {
                                 <>
                                   <div className="mono" style={{ color: "var(--text-primary)" }}>{order.orderId}</div>
                                   <div className="item-meta">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ""}</div>
+                                  {status === "new" && !(orderRefs[order.orderId]?.aliOrderIds || []).length && (
+                                    <span className="badge badge-new" title="No AliExpress number yet. This tag goes away once the order is synced.">
+                                      New
+                                    </span>
+                                  )}
                                 </>
                               )}
                             </td>
