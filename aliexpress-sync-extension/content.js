@@ -146,6 +146,12 @@
       askedForTracking.add(aliOrderId);
       send({ type: "FETCH_TRACKING", aliOrderId, url: link.href });
     }
+    // Orders without a "Track status" link on the list (delivered ones lose it) are read from their tracking page directly.
+    for (const { id } of findRefElements()) {
+      if (!state.synced[id] || state.tracked[id] || askedForTracking.has(id)) continue;
+      askedForTracking.add(id);
+      send({ type: "FETCH_TRACKING", aliOrderId: id, url: `https://www.aliexpress.com/p/tracking/index.html?tradeOrderId=${encodeURIComponent(id)}` });
+    }
   }
 
   // The first line of an element's text, e.g. "In transit" or "Delivery: Oct 28 - 30".

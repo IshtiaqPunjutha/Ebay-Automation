@@ -179,6 +179,9 @@ async function runTrackQueue() {
   }
 }
 
+// AliExpress's tracking page for an order, built from its number (the same page the "Track status" button opens).
+const trackingUrlFor = (aliOrderId) => `https://www.aliexpress.com/p/tracking/index.html?tradeOrderId=${encodeURIComponent(aliOrderId)}`;
+
 async function enqueueTracking(aliOrderId, url) {
   // Only an AliExpress tracking link whose order number matches may be opened.
   if (AliSyncLib.trackingOrderIdFromUrl(url) !== String(aliOrderId)) return { ok: false, error: "Not an AliExpress tracking link" };
@@ -236,6 +239,17 @@ async function autoCheck({ force = false } = {}) {
       const all = await getTrackState();
       for (const v of Object.values(all)) if (!trackingDone(v)) delete v.attemptAt;
       await chrome.storage.local.set({ trackState: all });
+    }
+    // Read every synced, unfinished order straight from its tracking page. A delivered order often has no
+    // "Track status" link on the orders list any more, so the list alone would never find it.
+    {
+      const { synced } = await chrome.storage.local.get("synced");
+      const states = await getTrackState();
+      for (const [id, value] of Object.entries(synced || {})) {
+        if (trackingDone(states[id])) continue;
+        if (value.at && Date.now() - value.at > AUTO_RECENT_MS) continue;
+        await enqueueTracking(id, trackingUrlFor(id));
+      }
     }
     tab = await chrome.tabs.create({ url: ORDERS_URL, active: false });
     const started = Date.now();
