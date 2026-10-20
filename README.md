@@ -166,3 +166,11 @@ _Finance page: redeploy trigger._
 - **VA payments**: record what you paid the VA for a month. The page shows what is owed, paid and still to pay.
 - Money is added in whole pence, months and days follow UK time (set `FINANCE_TIMEZONE` to change it), and
   **Check against eBay** compares every order with the orders page's own figure.
+
+### Closing a month and Excel (per store, PIN protected)
+
+On a store's Finance page, **Close month** (only after the month's last day) saves the month as it is: orders,
+earnings, costs, charges, expenses and the partnership split. A closed month never changes again, whatever eBay
+or the extension says later; VA payments can still be recorded against it. **Reopen month** makes it live again.
+**Closed months** lists every closed month; **Download Excel** gives a workbook for one month (Summary, Days, Orders,
+Other charges, Extra expenses, VA payments) and **Download all as Excel** one row per closed month.

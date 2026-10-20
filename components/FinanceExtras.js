@@ -96,7 +96,7 @@ function defaultDate(month) {
 }
 
 // Extra expenses of the month (not on eBay): listed, added and deleted here. They reduce the profit.
-export function ExpensesPanel({ report, month, storeId, onMutate }) {
+export function ExpensesPanel({ report, month, storeId, onMutate, locked = false }) {
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(defaultDate(month));
@@ -139,20 +139,27 @@ export function ExpensesPanel({ report, month, storeId, onMutate }) {
                   <td>{e.label}</td>
                   <td>{money(e.amount, report.currency)}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="link-accent"
-                      style={linkButton}
-                      onClick={() => confirm(`Delete "${e.label}"?`) && onMutate("expenses", "DELETE", storeId, { month, id: e.id })}
-                    >
-                      Delete
-                    </button>
+                    {!locked && (
+                      <button
+                        type="button"
+                        className="link-accent"
+                        style={linkButton}
+                        onClick={() => confirm(`Delete "${e.label}"?`) && onMutate("expenses", "DELETE", storeId, { month, id: e.id })}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
           </tbody>
         </table>
       )}
+      {locked ? (
+        <p className="text-muted" style={{ fontSize: 12.5 }}>
+          This month is closed. Reopen it to change the expenses.
+        </p>
+      ) : (
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         <input className="input" placeholder="What for" value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} aria-label="Expense label" />
         <input className="input" style={{ width: 90 }} inputMode="decimal" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Expense amount" />
@@ -170,6 +177,7 @@ export function ExpensesPanel({ report, month, storeId, onMutate }) {
         </button>
         {error && <span className="text-error" style={{ fontSize: 12 }}>{error}</span>}
       </div>
+      )}
     </div>
   );
 }

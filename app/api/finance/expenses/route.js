@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { DATE_PATTERN, MONTH_PATTERN, cleanText, guardFinance, readJson, validAmount } from "@/lib/financeAuth";
-import { getExpenses, saveExpenses } from "@/lib/store";
+import { getClosedMonths, getExpenses, saveExpenses } from "@/lib/store";
+
+const CLOSED = "This month is closed. Reopen it first if you need to change it.";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -24,6 +26,7 @@ export async function POST(request) {
   if (!validAmount(body.amount) || body.amount === 0) {
     return NextResponse.json({ error: "The amount must be above 0, with at most 2 decimals." }, { status: 400 });
   }
+  if ((await getClosedMonths(g.userId, g.storeId))[body.month]) return NextResponse.json({ error: CLOSED }, { status: 409 });
   const list = await getExpenses(g.userId, g.storeId, body.month);
   if (list.length >= MAX_PER_MONTH) return NextResponse.json({ error: "Too many expenses for one month." }, { status: 400 });
   await saveExpenses(g.userId, g.storeId, body.month, [...list, { id: randomUUID(), label, amount: body.amount, date: body.date }]);
@@ -38,6 +41,7 @@ export async function DELETE(request) {
   if (!body || !MONTH_PATTERN.test(body.month || "") || typeof body.id !== "string") {
     return NextResponse.json({ error: "A month and an expense id are needed." }, { status: 400 });
   }
+  if ((await getClosedMonths(g.userId, g.storeId))[body.month]) return NextResponse.json({ error: CLOSED }, { status: 409 });
   const list = await getExpenses(g.userId, g.storeId, body.month);
   await saveExpenses(g.userId, g.storeId, body.month, list.filter((e) => e.id !== body.id));
   return NextResponse.json({ ok: true });

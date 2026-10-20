@@ -115,6 +115,29 @@ function PinGate({ hasPin, onUnlocked }) {
 }
 
 function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
+  const closed = entry.closed;
+  const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState("");
+  const exportUrl = `/api/finance/export?store=${encodeURIComponent(entry.storeId)}&month=${encodeURIComponent(month)}`;
+
+  async function closeMonth() {
+    const missing = entry.report?.missingCost || 0;
+    const warning = missing ? `${missing} order(s) still have no AliExpress cost; add them first if you can.\n\n` : "";
+    if (!confirm(`Close ${month}?\n\nIts figures are saved as they are now and no longer change. ${warning}You can reopen the month later.`)) return;
+    setClosing(true);
+    setCloseError("");
+    const err = await onMutate("close", "POST", entry.storeId, { month });
+    setCloseError(err || "");
+    setClosing(false);
+  }
+
+  async function reopenMonth() {
+    if (!confirm(`Reopen ${month}? Its figures become live again and change with eBay.`)) return;
+    setClosing(true);
+    setCloseError((await onMutate("close", "DELETE", entry.storeId, { month })) || "");
+    setClosing(false);
+  }
+
   const { report, partnership } = entry;
   const [draft, setDraft] = useState(String(partnership.vaPercent));
   const [saving, setSaving] = useState(false);
@@ -161,14 +184,40 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
       )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        {closed ? (
+          <span className="badge badge-success" title="The figures below are frozen">
+            Closed on {new Date(closed.at).toLocaleDateString("en-GB")}
+          </span>
+        ) : (
+          <span className="badge">Open: figures are live</span>
+        )}
+        {entry.report && (
+          <a className="btn btn-secondary btn-sm" href={exportUrl} download>
+            Download Excel
+          </a>
+        )}
+        {entry.report && !closed && (
+          <button type="button" className="btn btn-primary btn-sm" onClick={closeMonth} disabled={closing}>
+            {closing ? "Closing…" : "Close month"}
+          </button>
+        )}
+        {closed && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={reopenMonth} disabled={closing}>
+            Reopen month
+          </button>
+        )}
+        {closeError && <span className="text-error" style={{ fontSize: 12.5 }}>{closeError}</span>}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
         <label className="filter-select">
           Partnership: VA gets
-          <input className="input" style={{ width: 80 }} inputMode="decimal" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="VA share in percent" />%
+          <input className="input" style={{ width: 80 }} inputMode="decimal" value={draft} disabled={Boolean(closed)} onChange={(e) => setDraft(e.target.value)} aria-label="VA share in percent" />%
         </label>
         <span className="text-muted">
           Owner gets {valid ? Math.round((100 - percent) * 100) / 100 : "…"}%
         </span>
-        <button type="button" className="btn btn-secondary" onClick={save} disabled={!valid || saving || percent === partnership.vaPercent}>
+        <button type="button" className="btn btn-secondary" onClick={save} disabled={Boolean(closed) || !valid || saving || percent === partnership.vaPercent}>
           Save split
         </button>
         {message && <span className="text-muted" role="status">{message}</span>}
@@ -368,7 +417,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                         </span>
                       </td>
                       <td>{money(o.net, report.currency)}</td>
-                      <td><CostCell order={o} currency={report.currency} onSave={(orderId, amount) => onMutate("manual-cost", "PUT", entry.storeId, { orderId, amount })} /></td>
+                      <td>{closed ? (o.cost === null ? <span className="text-muted">no cost</span> : money(o.cost, report.currency)) : <CostCell order={o} currency={report.currency} onSave={(orderId, amount) => onMutate("manual-cost", "PUT", entry.storeId, { orderId, amount })} />}</td>
                       <td>{money(o.profit, report.currency)}</td>
                     </tr>
                   ))}
@@ -388,7 +437,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             </div>
             );
           })()}
-          <ExpensesPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
+          <ExpensesPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} locked={Boolean(closed)} />
           <PaymentsPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
         </>
       )}
@@ -431,6 +480,16 @@ export default function FinanceView({ storeId }) {
     };
   }, [lock]);
 
+  // Closed months of this store (store pages only): the record, with Excel downloads.
+  const [history, setHistory] = useState([]);
+  const loadHistory = useCallback(async () => {
+    if (!storeId) return;
+    try {
+      const res = await fetch(`/api/finance/closed?store=${encodeURIComponent(storeId)}`);
+      if (res.ok) setHistory((await res.json()).months || []);
+    } catch {}
+  }, [storeId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -444,12 +503,13 @@ export default function FinanceView({ storeId }) {
       }
       if (!res.ok) throw new Error(body.error || "Could not load the figures.");
       setData(body);
+      loadHistory();
     } catch (err) {
       setError(err.message || "Could not load the figures.");
     } finally {
       setLoading(false);
     }
-  }, [month, storeId]);
+  }, [month, storeId, loadHistory]);
 
   useEffect(() => {
     if (gate === "open") load();
@@ -533,6 +593,57 @@ export default function FinanceView({ storeId }) {
         <StoreCard key={entry.storeId} entry={entry} onSavePercent={savePercent} single={Boolean(storeId)} month={month} onMutate={mutate} />
       ))}
       {data && data.stores.length === 0 && <p className="text-muted">No store connected yet.</p>}
+
+      {storeId && history.length > 0 && (
+        <div className="panel" style={{ padding: 16, marginBottom: 16 }}>
+          <div className="section-header" style={{ marginTop: 0 }}>
+            <h2 className="section-title">Closed months</h2>
+            <a className="btn btn-secondary btn-sm" href={`/api/finance/export?store=${encodeURIComponent(storeId)}&all=1`} download>
+              Download all as Excel
+            </a>
+          </div>
+          <div className="review-scroll">
+            <table className="review-table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th>Orders</th>
+                  <th>Earnings</th>
+                  <th>Profit</th>
+                  <th>VA share</th>
+                  <th>Paid / still owed</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.month}>
+                    <td>
+                      <button type="button" className="link-accent" style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }} onClick={() => setMonth(h.month)} title="Open this month">
+                        {h.month}
+                      </button>
+                    </td>
+                    <td>{h.orders}</td>
+                    <td>{money(h.earnings, h.currency)}</td>
+                    <td>{money(h.profit, h.currency)}</td>
+                    <td>
+                      {money(h.vaShare, h.currency)} ({h.vaPercent}%)
+                    </td>
+                    <td>
+                      {money(h.vaPaid, h.currency)} / {h.vaBalance > 0 ? money(h.vaBalance, h.currency) : h.vaBalance < 0 ? `overpaid ${money(-h.vaBalance, h.currency)}` : "settled"}
+                    </td>
+                    <td>
+                      <a className="link-accent" href={`/api/finance/export?store=${encodeURIComponent(storeId)}&month=${encodeURIComponent(h.month)}`} download>
+                        Excel
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 import { isUnlocked } from "@/lib/pin";
-import { monthRange, summarizeMonth } from "@/lib/finance";
-import { fetchTransactionsInRange, isTokenExpired, refreshAccessToken } from "@/lib/ebay";
-import { getAliCosts, getExpenses, getManualCosts, getOrderRefs, getPartnership, getPayments, listEbayStores, updateStoreAccessToken } from "@/lib/store";
+import { monthRange } from "@/lib/finance";
+import { loadMonthReport } from "@/lib/financeReport";
+import { getPartnership, listEbayStores } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -11,42 +11,34 @@ export const fetchCache = "force-no-store";
 export const maxDuration = 60;
 
 // GET /api/finance/report?month=2026-10[&store=<id>]   (needs the finance PIN)
-// -> { month, stores: [{ storeId, label, partnership, report | error }] } for every connected store.
+// -> { month, stores: [{ storeId, label, partnership, closed, report | error }] } for every connected store.
+// A closed month comes back exactly as it was closed.
 export async function GET(request) {
   const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!userId) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   if (!(await isUnlocked(request, userId))) return NextResponse.json({ error: "Enter your PIN first.", locked: true }, { status: 403 });
 
   const month = new URL(request.url).searchParams.get("month") || "";
-  const range = monthRange(month);
-  if (!range) return NextResponse.json({ error: "month must look like 2026-10" }, { status: 400 });
+  if (!monthRange(month)) return NextResponse.json({ error: "month must look like 2026-10" }, { status: 400 });
 
   // &store=<id> limits the report to one store (the store's own finance page).
   const only = new URL(request.url).searchParams.get("store");
   const stores = (await listEbayStores(userId)).filter((s) => !only || s.storeId === only);
   const out = await Promise.all(
     stores.map(async (s) => {
-      const partnership = await getPartnership(userId, s.storeId);
-      const base = { storeId: s.storeId, label: s.label || s.storeId, partnership };
+      const label = s.label || s.storeId;
       try {
-        let record = s;
-        if (isTokenExpired(record.tokens)) {
-          const refreshed = await refreshAccessToken(record.tokens.refreshToken);
-          record = await updateStoreAccessToken(userId, s.storeId, refreshed.accessToken, refreshed.expiresIn);
-        }
-        const [transactions, refs, costs, manualCosts, expenses, allPayments] = await Promise.all([
-          fetchTransactionsInRange(record.tokens.accessToken, range.from, range.to),
-          getOrderRefs(userId, s.storeId),
-          getAliCosts(userId, s.storeId),
-          getManualCosts(userId, s.storeId),
-          getExpenses(userId, s.storeId, month),
-          getPayments(userId, s.storeId),
-        ]);
-        const payments = allPayments.filter((p) => p.month === month);
-        return { ...base, report: summarizeMonth(transactions, refs, costs, partnership.vaPercent, month, { manualCosts, expenses, payments }) };
+        const { partnership, report, closed } = await loadMonthReport(userId, s, month);
+        return { storeId: s.storeId, label, partnership, closed, report };
       } catch (err) {
         console.error(`Finance report failed for store ${s.storeId}:`, err);
-        return { ...base, error: err.code === "invalid_grant" ? "This eBay connection needs to be authorized again." : "Could not read this store's transactions from eBay." };
+        return {
+          storeId: s.storeId,
+          label,
+          partnership: await getPartnership(userId, s.storeId),
+          closed: null,
+          error: err.code === "invalid_grant" ? "This eBay connection needs to be authorized again." : "Could not read this store's transactions from eBay.",
+        };
       }
     })
   );
