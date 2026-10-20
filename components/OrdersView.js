@@ -388,7 +388,7 @@ function sumByCurrency(pairs) {
 function StatusBadge({ status }) {
   if (status === "FULFILLED") {
     return (
-      <span className="badge badge-success">
+      <span className="badge badge-info">
         <Truck strokeWidth={2.5} />
         Dispatched
       </span>
