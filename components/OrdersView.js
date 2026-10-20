@@ -1153,10 +1153,9 @@ export default function OrdersView({ status = "new" }) {
                     <th className="num">Total{singleCurrency ? ` (${singleCurrency})` : ""}</th>
                     <th className="num">Earnings{singleCurrency ? ` (${singleCurrency})` : ""}</th>
                     <th>Ship to</th>
-                    <th>AliExpress order</th>
-                    {status === "dispatched" && <th>Tracking</th>}
+                    <th>{status === "dispatched" ? "AliExpress order & tracking" : "AliExpress order"}</th>
                     <th>Status</th>
-                    <th></th>
+                    {status === "new" && <th></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1275,12 +1274,9 @@ export default function OrdersView({ status = "new" }) {
                                   disabled={savingRef}
                                 />
                               )}
+                              {/* A dispatched order shows eBay's tracking under its AliExpress number, in the same column. */}
+                              {status === "dispatched" && idx === 0 && <TrackingCell shipments={order.shipments} />}
                             </td>
-                            {status === "dispatched" && (
-                              <td style={{ minWidth: "190px" }}>
-                                {idx === 0 && <TrackingCell shipments={order.shipments} />}
-                              </td>
-                            )}
                             <td>
                               {idx === 0 && (
                                 <div className="status-cell">
@@ -1313,6 +1309,7 @@ export default function OrdersView({ status = "new" }) {
                                 </div>
                               )}
                             </td>
+                            {status === "new" && (
                             <td>
                               <div className="row-actions">
                                 <AliExpressOpen
@@ -1345,6 +1342,7 @@ export default function OrdersView({ status = "new" }) {
                                 )}
                               </div>
                             </td>
+                            )}
                           </tr>
                         </Fragment>
                       );
