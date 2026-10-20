@@ -365,17 +365,24 @@ export default function SheetMappingPage() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header compact-header">
         <div>
           <h1 className="page-title">Sheet mapping</h1>
           <p className="page-subtitle">
             Pair each eBay listing with its AliExpress source. Paste straight from Excel or Google Sheets.
           </p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={fetchListings} disabled={syncing || loading}>
-          {syncing ? <LoaderCircle className="spin" strokeWidth={2} /> : <Download strokeWidth={2} />}
-          {syncing ? "Fetching listings…" : "Fetch my listings"}
-        </button>
+        <div className="header-tools">
+          <div className="stat-chips">
+            <div className="stat-chip" title="Rows with something in them">
+              <span className="stat-chip-label">Rows</span>
+              <span className="stat-chip-value">{loading ? "–" : filled}</span>
+            </div>
+            <div className="stat-chip" title="Have an eBay link and at least one AliExpress link">
+              <span className="stat-chip-label">Fully mapped</span>
+              <span className="stat-chip-value good">{loading ? "–" : mapped}</span>
+            </div>
+          </div>
         <div className="save-state" role="status" aria-live="polite">
           {saveState === "pending" && <span>Unsaved changes…</span>}
           {saveState === "saving" && (
@@ -388,6 +395,7 @@ export default function SheetMappingPage() {
               <Check strokeWidth={2.5} /> Saved
             </span>
           )}
+        </div>
         </div>
       </div>
 
@@ -403,17 +411,6 @@ export default function SheetMappingPage() {
           {syncMessage}
         </p>
       )}
-
-      <div className="stat-grid compact">
-        <div className="stat-card">
-          <div className="stat-label" title="Rows with something in them">Rows</div>
-          <div className="stat-value">{loading ? "–" : filled}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label" title="Have an eBay link and at least one AliExpress link">Fully mapped</div>
-          <div className="stat-value">{loading ? "–" : mapped}</div>
-        </div>
-      </div>
 
       {loading ? (
         <div className="panel">
@@ -481,6 +478,16 @@ export default function SheetMappingPage() {
             <button type="button" className="btn btn-secondary btn-sm" onClick={addRows} title="Add 10 empty rows at the bottom">
               <Plus strokeWidth={2.5} />
               Add {ADD_ROWS} rows
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={fetchListings}
+              disabled={syncing || loading}
+              title="Pull every active listing of this store into the sheet"
+            >
+              {syncing ? <LoaderCircle className="spin" strokeWidth={2} /> : <Download strokeWidth={2} />}
+              {syncing ? "Fetching listings…" : "Fetch my listings"}
             </button>
             <span className="table-meta">
               {isFiltering ? `${visibleRows.length} of ${filled} rows` : `${filled} rows`}
