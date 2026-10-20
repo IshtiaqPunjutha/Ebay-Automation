@@ -167,11 +167,12 @@ function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
           />
           {problem && <div className="text-error" style={{ fontSize: 11, marginTop: 2 }}>{problem}</div>}
         </div>
-      ) : (
+      ) : ids.length === 0 ? (
+        // Once an order number is there the button goes away; remove the number (x) to add a different one.
         <button type="button" className="ali-order-add" onClick={() => setAdding(true)} disabled={disabled}>
-          + {ids.length ? "Add" : "Add order no."}
+          + Add order no.
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
