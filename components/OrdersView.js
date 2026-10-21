@@ -1150,6 +1150,32 @@ export default function OrdersView({ status = "new" }) {
                 ? `${firstShown}–${lastShown} of ${total}`
                 : `${visibleOrders.length} of ${orders.length} on this page`}
             </span>
+            {/* Previous / next as small icons at the top too, so you do not have to scroll to the bottom to turn the page. */}
+            <div className="pager-mini" role="group" aria-label="Change page">
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={loading || page <= 1}
+                title="Previous page"
+                aria-label="Previous page"
+              >
+                <ChevronLeft strokeWidth={2} />
+              </button>
+              <span className="pager-mini-page" title={`Page ${page} of ${pageCount}`}>
+                {page}/{pageCount}
+              </span>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={loading || page >= pageCount}
+                title="Next page"
+                aria-label="Next page"
+              >
+                <ChevronRight strokeWidth={2} />
+              </button>
+            </div>
           </div>
 
           {visibleOrders.length === 0 ? (

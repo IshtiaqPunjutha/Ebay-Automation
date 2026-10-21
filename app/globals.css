@@ -2261,3 +2261,23 @@ a.list-row:hover,
 .item-meta .qty-tag:first-child {
   margin-left: 0;
 }
+
+/* Previous / next page icons in the top toolbar */
+.pager-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pager-mini-page {
+  min-width: 34px;
+  text-align: center;
+  font-size: 12px;
+  font-family: var(--font-geist-mono);
+  color: var(--text-secondary);
+}
+
+.pager-mini .icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
