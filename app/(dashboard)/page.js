@@ -61,14 +61,6 @@ export default function DashboardOverview() {
           {loading ? <div className="skeleton" style={{ height: "30px", width: "48px" }} /> : <div className="stat-value">{stores.length}</div>}
           <div className="stat-hint">{stores.length === 1 ? "1 eBay seller account" : "eBay seller accounts"}</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-label">
-            <PackageSearch strokeWidth={2} />
-            Orders in queue
-          </div>
-          <div className="stat-value">0</div>
-          <div className="stat-hint">Arrives with the AliExpress matching step</div>
-        </div>
       </div>
 
       <div className="section-header">

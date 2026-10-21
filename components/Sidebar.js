@@ -18,10 +18,6 @@ function workspaceGroups() {
         { href: "/finance", label: "Finance (all stores)", icon: Landmark },
       ],
     },
-    {
-      label: "Coming soon",
-      items: [{ label: "Order queue", icon: ListChecks, soon: true }],
-    },
   ];
 }
 
@@ -41,10 +37,6 @@ function storeGroups(storeId) {
         { href: `/stores/${storeId}/sheet`, label: "Sheet mapping", icon: Table2 },
         { href: `/stores/${storeId}/finance`, label: "Finance", icon: Landmark },
       ],
-    },
-    {
-      label: "Coming soon",
-      items: [{ label: "Order queue", icon: ListChecks, soon: true }],
     },
   ];
 }
