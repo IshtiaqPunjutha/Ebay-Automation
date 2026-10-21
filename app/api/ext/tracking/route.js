@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDeliveries, getOrderRefs, getTracking, listEbayStores, setDeliveries, setTracking } from "@/lib/store";
+import { getDeliveries, getOrderRefs, getTracking, listEbayStores, setDeliveries, setTrackEvents, setTracking } from "@/lib/store";
 import { authFromBearer, canUseStore } from "@/lib/exttoken";
 import { cleanCarrierName } from "@/lib/shipping";
 
@@ -12,6 +12,15 @@ const REF_PATTERN = /^[A-Za-z0-9-]{6,32}$/;
 const TRACKING_PATTERN = /^[A-Za-z0-9]{6,40}$/;
 
 const text = (value, max = 120) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+
+// The steps of the parcel, cleaned: at most 25, each field short.
+function cleanEvents(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .slice(0, 25)
+    .map((e) => ({ title: text(e?.title, 60), desc: text(e?.desc, 140), note: text(e?.note, 100), time: text(e?.time, 40) }))
+    .filter((e) => e.title || e.desc);
+}
 
 // POST /api/ext/tracking   (Authorization: Bearer <extension token>)
 //   body: { aliOrderId, trackingNumber, carrierName?, carrierText?, statusText?, estimateText?, delivered?: true }
@@ -39,7 +48,12 @@ export async function POST(request) {
       const refs = await getOrderRefs(auth.userId, store.storeId);
       const orderId = Object.keys(refs).find((id) => (refs[id].aliOrderIds || []).includes(aliOrderId));
       if (!orderId) continue;
+      const events = cleanEvents(body.events);
+      if (events.length) await setTrackEvents(auth.userId, store.storeId, aliOrderId, events);
       const saved = await setTracking(auth.userId, store.storeId, aliOrderId, {
+        // The newest step, for the Status column.
+        statusDesc: text(events[0]?.desc, 140),
+        statusTime: text(events[0]?.time, 40),
         trackingNumber,
         // The delivery carrier AliExpress shows on the tracking page (such as "InPost"); empty until it appears.
         carrierName: cleanCarrierName(body.carrierName),

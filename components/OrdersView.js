@@ -64,6 +64,58 @@ function agoLabel(days) {
 // AliExpress order number(s) bought for an eBay order. Shown as chips (click to
 // copy, x to remove) with an inline box to add another; separate several
 // numbers with spaces or commas.
+// Where an AliExpress parcel is: its newest step, and every step when asked (fetched only then).
+function ParcelProgress({ storeId, aliOrderId, record }) {
+  const [open, setOpen] = useState(false);
+  const [events, setEvents] = useState(null);
+  const [problem, setProblem] = useState("");
+  if (!record?.statusText && !record?.statusDesc) return null;
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && events === null) {
+      try {
+        const res = await fetch(`/api/ebay/tracking/events?store=${encodeURIComponent(storeId)}&ali=${encodeURIComponent(aliOrderId)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not load the steps.");
+        setEvents(data.events || []);
+      } catch (err) {
+        setProblem(err.message || "Could not load the steps.");
+        setEvents([]);
+      }
+    }
+  }
+
+  return (
+    <div className="parcel-progress">
+      <div className="parcel-latest" title="Newest step on AliExpress's tracking page">
+        <strong>{record.statusText}</strong>
+        {record.statusDesc && record.statusDesc !== record.statusText && <span> · {record.statusDesc}</span>}
+        {record.statusTime && <div className="parcel-time">{record.statusTime}</div>}
+      </div>
+      <button type="button" className="link-button" onClick={toggle} aria-expanded={open}>
+        {open ? "Hide steps" : "All steps"}
+      </button>
+      {open && (
+        <ol className="parcel-steps">
+          {events === null && <li className="text-muted">Loading…</li>}
+          {problem && <li className="text-error">{problem}</li>}
+          {events && events.length === 0 && !problem && <li className="text-muted">No steps saved yet. They appear after the next check.</li>}
+          {(events || []).map((e, i) => (
+            <li key={i} className={i === 0 ? "parcel-step latest" : "parcel-step"}>
+              <div className="parcel-step-title">{e.title || e.desc}</div>
+              {e.title && e.desc && <div className="parcel-step-desc">{e.desc}</div>}
+              {e.note && <div className="parcel-step-desc">{e.note}</div>}
+              {e.time && <div className="parcel-time">{e.time}</div>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
@@ -1280,6 +1332,11 @@ export default function OrdersView({ status = "new" }) {
                                     {deliveries[order.orderId] ? "Undo" : "Mark delivered"}
                                   </button>
                                 )}
+                                {/* Where the parcel is, from AliExpress's tracking page: the newest step, and all steps on click. */}
+                                {status === "dispatched" &&
+                                  (orderRefs[order.orderId]?.aliOrderIds || []).map((aliId) => (
+                                    <ParcelProgress key={aliId} storeId={storeId} aliOrderId={aliId} record={tracking[aliId]} />
+                                  ))}
                               </div>
                             )}
                           </td>

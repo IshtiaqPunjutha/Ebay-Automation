@@ -197,3 +197,9 @@ parcels is marked only when all of them are delivered. The manual "Mark delivere
 The automatic check (every 3 hours, or **Check now**) opens the AliExpress orders list in a background tab and now
 scrolls down it (and presses "view more" buttons) until every synced order has its cost in the dashboard, the list
 stops growing, or about 80 steps have passed. A cost that was already sent is not sent again. Sync stays manual.
+
+### Parcel steps (extension 1.7.0)
+
+The extension also reads every step of AliExpress's tracking page (title, description, carrier note, time). On the
+**Dispatched** tab the Status column shows the newest step under the badge, and **All steps** opens the whole list
+(loaded only when you click). Parcels that were finished before this version are read once more to get their steps.

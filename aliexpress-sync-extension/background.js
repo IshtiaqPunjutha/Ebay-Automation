@@ -112,7 +112,8 @@ async function patchTrackState(aliOrderId, patch) {
 // An order is finished once its number is in the dashboard, the carrier is known and AliExpress says
 // Delivered. Before that it is read again: after 2.5 hours while the carrier is missing, after 8 hours
 // while it is on its way (see enqueueTracking).
-const trackingDone = (state) => Boolean(state?.uploadedAt && state?.carrierName && state?.delivered);
+// (A record saved before the steps were read has no `eventsAt` and is read once more, to get them.)
+const trackingDone = (state) => Boolean(state?.uploadedAt && state?.carrierName && state?.delivered && state?.eventsAt);
 
 async function uploadTracking(data) {
   const result = await api("/api/ext/tracking", { method: "POST", body: JSON.stringify(data) });
@@ -121,6 +122,7 @@ async function uploadTracking(data) {
       trackingNumber: data.trackingNumber,
       carrierName: data.carrierName || "",
       delivered: Boolean(data.delivered),
+      eventsAt: Array.isArray(data.events) && data.events.length ? Date.now() : undefined,
       uploadedAt: Date.now(),
       attemptAt: Date.now(), // so an order still waiting for its carrier is looked at again after a while, not at once
       lastError: data.carrierName ? "" : "Tracking saved; waiting for AliExpress to show the delivery carrier.",
@@ -380,6 +382,7 @@ async function handle(message, sender) {
         aliOrderId,
         trackingNumber: number,
         carrierName: String(message.carrierName || "").slice(0, 60),
+        events: Array.isArray(message.events) ? message.events.slice(0, 25) : undefined,
         // Only ever sent when AliExpress says Delivered, so a later odd reading can not undo it.
         ...(message.delivered === true ? { delivered: true, deliveredTime: String(message.deliveredTime || "").slice(0, 60) } : {}),
         carrierText: message.carrierText || "",

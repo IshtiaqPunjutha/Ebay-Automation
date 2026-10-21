@@ -2281,3 +2281,45 @@ a.list-row:hover,
   opacity: 0.35;
   cursor: default;
 }
+
+/* Where the parcel is (Status column of the dispatched tab) */
+.parcel-progress {
+  margin-top: 8px;
+  max-width: 230px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.parcel-latest strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.parcel-time {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.parcel-steps {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parcel-step-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.parcel-step.latest .parcel-step-title {
+  color: var(--success);
+}
+
+.parcel-step-desc {
+  color: var(--text-secondary);
+}

@@ -179,10 +179,21 @@
     const latestTitle = firstLine(document.querySelector('[class*="logistic-info-v2--nodeTitle"]'));
     const latestDesc = firstLine(document.querySelector('[class*="logistic-info-v2--nodeDesc"]'));
     const delivered = /^delivered\b/i.test(latestTitle) || /^(package|parcel) delivered/i.test(latestDesc);
+    // Every step the page lists, newest first: "Delivered / Package delivered. / Carrier note: ... / Tue | Oct. 20 12:42".
+    const events = [...document.querySelectorAll('[class*="logistic-info-v2--node--"]')]
+      .slice(0, 25)
+      .map((n) => ({
+        title: firstLine(n.querySelector('[class*="logistic-info-v2--nodeTitle"]')),
+        desc: firstLine(n.querySelector('[class*="logistic-info-v2--nodeDesc"]')),
+        note: firstLine(n.querySelector('[class*="logistic-info-v2--nodeNote"]')),
+        time: firstLine(n.querySelector('[class*="logistic-info-v2--nodeTime"]')),
+      }))
+      .filter((e) => e.title || e.desc);
     return {
       aliOrderId,
       trackingNumber,
       carrierName,
+      events,
       delivered,
       deliveredTime: delivered ? firstLine(document.querySelector('[class*="logistic-info-v2--nodeTime"]')) : "",
       carrierText: (serviceNode ? firstLine(serviceNode) : firstLine(document.querySelector('[class*="logistic-info-v2--carrier"]'))).replace(/[:：]\s*$/, ""),
