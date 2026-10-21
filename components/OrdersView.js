@@ -1177,11 +1177,12 @@ export default function OrdersView({ status = "new" }) {
                     <th>Item</th>
                     <th>Order</th>
                     {status === "dispatched" && <th>Status</th>}
+                    {status === "dispatched" && <th>AliExpress order &amp; tracking</th>}
                     <th className="num" title={`T = Total the buyer paid, E = what you Earn after eBay's fees${singleCurrency ? ` (${singleCurrency})` : ""}`}>
                       {({ GBP: "£", EUR: "€", USD: "$" })[singleCurrency] || singleCurrency || "£"} (T/E)
                     </th>
                     <th>Ship to</th>
-                    <th>{status === "dispatched" ? "AliExpress order & tracking" : "AliExpress order"}</th>
+                    {status === "new" && <th>AliExpress order</th>}
                     {status === "new" && <th>Status</th>}
                   </tr>
                 </thead>
@@ -1205,6 +1206,22 @@ export default function OrdersView({ status = "new" }) {
                       const phone = order.shipTo.phone;
                       // Everything a courier label needs, one item per line.
                       const fullBlock = [recipient, ...addressParts, phone].filter(Boolean).join("\n");
+                      // The AliExpress number (with eBay's tracking under it on the dispatched tab). On the dispatched tab it
+                      // sits next to Status, near the left, so it stays in view on a small screen.
+                      const aliCell = (
+                        <td style={{ minWidth: "190px" }}>
+                          {idx === 0 && (
+                            <AliOrderCell
+                              ids={orderRefs[order.orderId]?.aliOrderIds || []}
+                              // Once an order is dispatched, eBay's own tracking is shown under it instead.
+                              tracking={status === "new" ? tracking : {}}
+                              onSave={(ids) => saveOrderRef(order.orderId, ids)}
+                              disabled={savingRef}
+                            />
+                          )}
+                          {status === "dispatched" && idx === 0 && <TrackingCell shipments={order.shipments} />}
+                        </td>
+                      );
                       // The status column sits right after Order on the dispatched tab, so it stays in view on a small screen.
                       const statusCell = (
                           <td>
@@ -1328,6 +1345,7 @@ export default function OrdersView({ status = "new" }) {
                               )}
                             </td>
                             {status === "dispatched" && statusCell}
+                            {status === "dispatched" && aliCell}
                             {/* Total and earnings share one narrow column: the total on top, what you earn (green) below. */}
                             <td className="num mono money-cell">
                               {idx === 0 && (
@@ -1368,19 +1386,7 @@ export default function OrdersView({ status = "new" }) {
                                 </>
                               )}
                             </td>
-                            <td style={{ minWidth: "190px" }}>
-                              {idx === 0 && (
-                                <AliOrderCell
-                                  ids={orderRefs[order.orderId]?.aliOrderIds || []}
-                                  // Once an order is dispatched, eBay's own Tracking column already shows it.
-                                  tracking={status === "new" ? tracking : {}}
-                                  onSave={(ids) => saveOrderRef(order.orderId, ids)}
-                                  disabled={savingRef}
-                                />
-                              )}
-                              {/* A dispatched order shows eBay's tracking under its AliExpress number, in the same column. */}
-                              {status === "dispatched" && idx === 0 && <TrackingCell shipments={order.shipments} />}
-                            </td>
+                            {status === "new" && aliCell}
                             {status === "new" && statusCell}
                           </tr>
                         </Fragment>
