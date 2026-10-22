@@ -14,6 +14,69 @@ export const money = (value, currency) => {
 const linkButton = { background: "none", border: 0, cursor: "pointer", padding: 0 };
 const isMoney = (n) => Number.isFinite(n) && n >= 0 && Math.round(n * 100) / 100 === n;
 
+const STATUS_LABEL = {
+  SUCCEEDED: "Paid",
+  INITIATED: "On its way",
+  PENDING: "Pending",
+  RETRYABLE_FAILED: "Failed (retrying)",
+  TERMINAL_FAILED: "Failed",
+  REVERSED: "Reversed",
+};
+
+// The payouts eBay sent to the bank in the month, and how they compare with what was earned.
+export function PayoutsPanel({ report }) {
+  if (report.payouts === undefined) return null; // an older closed month saved before payouts existed
+  if (report.payouts === null) {
+    return (
+      <div style={{ marginTop: 16 }}>
+        <h3 className="section-title" style={{ fontSize: 14 }}>eBay payouts</h3>
+        <p className="text-error" style={{ fontSize: 12.5 }}>{report.payoutsError || "Could not read the payouts from eBay."}</p>
+      </div>
+    );
+  }
+  const earnedCents = Math.round(report.earnings * 100) + Math.round(report.otherCharges * 100);
+  const difference = (earnedCents - Math.round(report.payoutsTotal * 100)) / 100;
+  return (
+    <div style={{ marginTop: 16 }}>
+      <h3 className="section-title" style={{ fontSize: 14 }}>
+        eBay payouts this month: {report.payoutsCount} payout{report.payoutsCount === 1 ? "" : "s"}, {money(report.payoutsTotal, report.currency)} paid to your bank
+      </h3>
+      <p className="text-muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+        eBay earnings after charges: {money(earnedCents / 100, report.currency)}. Difference with the payouts: {money(difference, report.currency)}
+        {" "}(money still with eBay, or paid out in another month). A payout also carries sales from the days before it.
+      </p>
+      {report.payouts.length === 0 ? (
+        <p className="text-muted" style={{ fontSize: 12.5 }}>No payout was made in this month.</p>
+      ) : (
+        <div className="review-scroll">
+          <table className="review-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Transactions</th>
+                <th>Bank</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.payouts.map((p) => (
+                <tr key={p.payoutId || p.date}>
+                  <td className="mono">{String(p.date || "").slice(0, 10)}</td>
+                  <td>{money(p.amount, p.currency)}</td>
+                  <td>{STATUS_LABEL[p.status] || p.status}</td>
+                  <td>{p.transactionCount ?? "–"}</td>
+                  <td className="text-muted">{p.bank}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The cost cell of an order row: shows the cost and lets a person type their own (it replaces the AliExpress figure).
 export function CostCell({ order, currency, onSave }) {
   const [editing, setEditing] = useState(false);

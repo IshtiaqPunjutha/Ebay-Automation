@@ -3,7 +3,7 @@ import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 import { isUnlocked } from "@/lib/pin";
 import { monthRange } from "@/lib/finance";
 import { loadMonthReport } from "@/lib/financeReport";
-import { getPartnership, listEbayStores } from "@/lib/store";
+import { getNicknames, getPartnership, listEbayStores } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -23,10 +23,11 @@ export async function GET(request) {
 
   // &store=<id> limits the report to one store (the store's own finance page).
   const only = new URL(request.url).searchParams.get("store");
+  const nicknames = await getNicknames(userId);
   const stores = (await listEbayStores(userId)).filter((s) => !only || s.storeId === only);
   const out = await Promise.all(
     stores.map(async (s) => {
-      const label = s.label || s.storeId;
+      const label = nicknames[s.storeId] || s.label || s.storeId;
       try {
         const { partnership, report, closed } = await loadMonthReport(userId, s, month);
         return { storeId: s.storeId, label, partnership, closed, report };

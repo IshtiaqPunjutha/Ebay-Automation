@@ -48,8 +48,30 @@ export default function StoresPage() {
     setStores((prev) => prev.filter((s) => s.storeId !== storeId));
   }
 
+  // Renaming a store: the nickname replaces the eBay username everywhere it is shown (empty = back to the username).
+  const [editingId, setEditingId] = useState("");
+  const [nickDraft, setNickDraft] = useState("");
+  const [nickError, setNickError] = useState("");
+
+  async function saveNickname(storeId) {
+    setNickError("");
+    try {
+      const res = await fetch("/api/ebay/stores", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId, nickname: nickDraft }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save the name.");
+      setEditingId("");
+      await loadStores();
+    } catch (err) {
+      setNickError(err.message || "Could not save the name.");
+    }
+  }
+
   const needle = query.trim().toLowerCase();
-  const matching = needle ? stores.filter((s) => `${s.label} ${s.storeId}`.toLowerCase().includes(needle)) : stores;
+  const matching = needle ? stores.filter((s) => `${s.label} ${s.username || ""} ${s.storeId}`.toLowerCase().includes(needle)) : stores;
   const paged = paginate(matching, page, pageSize);
 
   return (
@@ -137,13 +159,54 @@ export default function StoresPage() {
               }}
             >
               <div className="avatar">{(s.label || "?").slice(0, 2)}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="list-row-title">{s.label}</div>
-                <div className="list-row-meta">
-                  Connected {new Date(s.connectedAt).toLocaleDateString()}
-                </div>
+              <div style={{ flex: 1, minWidth: 0 }} onClick={(e) => editingId === s.storeId && e.stopPropagation()}>
+                {editingId === s.storeId ? (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <input
+                      className="input"
+                      autoFocus
+                      maxLength={40}
+                      placeholder={`Nickname (empty = ${s.username})`}
+                      value={nickDraft}
+                      onChange={(e) => setNickDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveNickname(s.storeId);
+                        if (e.key === "Escape") setEditingId("");
+                      }}
+                      aria-label={`Nickname for ${s.username}`}
+                      style={{ maxWidth: 260 }}
+                    />{" "}
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => saveNickname(s.storeId)}>
+                      Save
+                    </button>{" "}
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingId("")}>
+                      Cancel
+                    </button>
+                    {nickError && <div className="text-error" style={{ fontSize: 12 }}>{nickError}</div>}
+                  </div>
+                ) : (
+                  <>
+                    <div className="list-row-title">{s.label}</div>
+                    <div className="list-row-meta">
+                      {s.nickname ? `eBay: ${s.username} · ` : ""}
+                      Connected {new Date(s.connectedAt).toLocaleDateString()}
+                    </div>
+                  </>
+                )}
               </div>
               <div className="list-row-actions" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setEditingId(s.storeId);
+                    setNickDraft(s.nickname || "");
+                    setNickError("");
+                  }}
+                  title="Give this store a name you will remember"
+                >
+                  Rename
+                </button>
                 <Link href={`/stores/${s.storeId}`} className="btn btn-secondary btn-sm">
                   View orders
                 </Link>

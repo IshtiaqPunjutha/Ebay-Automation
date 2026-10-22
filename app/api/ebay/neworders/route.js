@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchNewOrdersLight, isTokenExpired, refreshAccessToken } from "@/lib/ebay";
-import { getOrderRefs, listEbayStores, updateStoreAccessToken } from "@/lib/store";
+import { getNicknames, getOrderRefs, listEbayStores, updateStoreAccessToken } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +16,10 @@ export async function GET(request) {
   const userId = await getSessionUserId(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!userId) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const stores = await listEbayStores(userId);
+  const [stores, nicknames] = await Promise.all([listEbayStores(userId), getNicknames(userId)]);
   const out = await Promise.all(
     stores.map(async (s) => {
-      const base = { storeId: s.storeId, label: s.label || s.storeId };
+      const base = { storeId: s.storeId, label: nicknames[s.storeId] || s.label || s.storeId };
       try {
         let record = s;
         if (isTokenExpired(record.tokens)) {

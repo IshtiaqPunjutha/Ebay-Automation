@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, CircleAlert, Copy, Landmark, LoaderCircle, Lock } from "lucide-react";
-import { CostCell, ExpensesPanel, PaymentsPanel } from "./FinanceExtras";
+import { CostCell, ExpensesPanel, PaymentsPanel, PayoutsPanel } from "./FinanceExtras";
 import { Pager, paginate } from "./Pager";
 
 const money = (value, currency) => {
@@ -142,11 +142,11 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
   const [draft, setDraft] = useState(String(partnership.vaPercent));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [showOrders, setShowOrders] = useState(false);
+  const [showOrders, setShowOrders] = useState(Boolean(single)); // a store's own page opens with its orders listed
   const [orderQuery, setOrderQuery] = useState("");
   const [orderPage, setOrderPage] = useState(1);
   const [orderPageSize, setOrderPageSize] = useState(25);
-  const [showDays, setShowDays] = useState(Boolean(single));
+  const [showDays, setShowDays] = useState(false); // day by day stays hidden until asked for
   const [check, setCheck] = useState(null); // result of "Check against eBay"
   const [checking, setChecking] = useState(false);
 
@@ -437,6 +437,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             </div>
             );
           })()}
+          <PayoutsPanel report={report} />
           <ExpensesPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} locked={Boolean(closed)} />
           <PaymentsPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
         </>

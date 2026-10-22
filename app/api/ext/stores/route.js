@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listEbayStores } from "@/lib/store";
+import { getNicknames, listEbayStores } from "@/lib/store";
 import { authFromBearer, canUseStore } from "@/lib/exttoken";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,11 @@ export async function GET(request) {
   const auth = await authFromBearer(request);
   if (!auth) return NextResponse.json({ error: "Invalid or missing token" }, { status: 401 });
   try {
+    const nicknames = await getNicknames(auth.userId);
     const stores = (await listEbayStores(auth.userId)).filter((s) => canUseStore(auth, s.storeId));
     return NextResponse.json({
       scope: auth.storeId ? "store" : "all",
-      stores: stores.map((s) => ({ storeId: s.storeId, label: s.label })),
+      stores: stores.map((s) => ({ storeId: s.storeId, label: nicknames[s.storeId] || s.label })),
     });
   } catch (err) {
     console.error("Extension store list failed:", err);
