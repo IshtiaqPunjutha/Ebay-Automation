@@ -100,17 +100,20 @@
   const params = new URLSearchParams(location.search);
   const ebayOrder = params.get("ebayOrder");
   const ebayStore = params.get("ebayStore");
+  const ebayLine = params.get("ebayLine") || "";
   if (ebayOrder && ebayStore) {
     send({
       type: "ADD_PENDING",
       orderId: ebayOrder,
       storeId: ebayStore,
+      lineItemId: ebayLine,
       aliItemId: lib.itemIdFromUrl(location.pathname),
       aliUrl: location.origin + location.pathname,
     }).then(() => toast(`Linked to eBay order ${ebayOrder}. After you pay, open your AliExpress orders and press Sync.`));
     // Keep the address bar clean.
     params.delete("ebayOrder");
     params.delete("ebayStore");
+    params.delete("ebayLine");
     const query = params.toString();
     history.replaceState(history.state, "", location.pathname + (query ? `?${query}` : "") + location.hash);
   }
@@ -448,7 +451,7 @@
   async function sync(button, id, node, entry) {
     button.textContent = "Syncing…";
     button.disabled = true;
-    const res = await send({ type: "SYNC", storeId: entry.storeId, orderId: entry.orderId, aliOrderId: id });
+    const res = await send({ type: "SYNC", storeId: entry.storeId, orderId: entry.orderId, aliOrderId: id, lineItemId: entry.lineItemId || "" });
     button.disabled = false;
     if (res?.ok) {
       await refreshState();
@@ -518,9 +521,10 @@
       list
         .map((entry) => ({ ...entry, score: lib.scoreAgainstCard(entry, card.text) }))
         .sort((a, b) => (a.shipped ? 1 : 0) - (b.shipped ? 1 : 0) || b.score - a.score || (b.source === "arrow") - (a.source === "arrow") || b.addedAt - a.addedAt);
-    const matchedKeys = new Set(matches.map((m) => `${m.storeId}|${m.orderId}`));
+    const keyOf = (m) => `${m.storeId}|${m.orderId}|${m.lineItemId || ""}`;
+    const matchedKeys = new Set(matches.map(keyOf));
     const same = rank(matches).map((m) => ({ ...m, sameProduct: true }));
-    const rest = rank(choices.filter((c) => !matchedKeys.has(`${c.storeId}|${c.orderId}`)));
+    const rest = rank(choices.filter((c) => !matchedKeys.has(keyOf(c))));
     const ordered = [...same, ...rest];
 
     // Point out a clear best guess (it still needs a click): it must fit well and clearly better than the next.
@@ -604,6 +608,8 @@
   function start() {
     lastHref = location.href;
     maybeAutoScan().catch(() => {});
+    // Any AliExpress page being opened lets the extension look at the parcels (see quickCheck in the background).
+    send({ type: "PAGE_OPENED" });
     schedule();
     observer = new MutationObserver(() => {
       if (onOrderPage()) schedule();

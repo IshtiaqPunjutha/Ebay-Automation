@@ -21,7 +21,10 @@ export default function SendTrackingDialog({ items: initialItems, storeId, onClo
     // Each order starts with the carrier AliExpress showed for its parcel.
     return Object.fromEntries(
       items.map((i) => {
-        const name = carrierChoiceFor(i.carrierName) || "Other";
+        // The carrier AliExpress showed; if it did not, the guess from the tracking number; if there is none either,
+        // nothing is chosen and a person has to pick one.
+        const name = carrierChoiceFor(i.carrierName || i.carrierGuess || "");
+        if (!name) return [i.orderId, { choice: "", custom: "" }];
         const known = CARRIER_CHOICES.includes(name);
         return [i.orderId, { choice: known ? name : CUSTOM, custom: known ? "" : name }];
       })
@@ -43,6 +46,7 @@ export default function SendTrackingDialog({ items: initialItems, storeId, onClo
 
   const carrierFor = (orderId) => {
     const c = carriers[orderId];
+    if (!c.choice) return "";
     return (c.choice === CUSTOM ? c.custom : c.choice).trim();
   };
   const invalid = items.filter((i) => !CARRIER_PATTERN.test(carrierFor(i.orderId)));
@@ -143,6 +147,11 @@ export default function SendTrackingDialog({ items: initialItems, storeId, onClo
                     <td>
                       <div className="mono" style={{ color: "var(--text-primary)" }}>{item.trackingNumber}</div>
                       {item.serviceText && <div className="item-meta">{item.serviceText}</div>}
+                      {!item.carrierName && (
+                        <div className="item-meta" style={{ color: "var(--warning)" }}>
+                          AliExpress has not shown the carrier{item.carrierGuess ? `. Guessed ${item.carrierGuess} from the number: check it` : ": choose it"}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <select
@@ -152,6 +161,7 @@ export default function SendTrackingDialog({ items: initialItems, storeId, onClo
                         disabled={sending || result?.ok}
                         aria-label={`Carrier for ${item.orderId}`}
                       >
+                        {c.choice === "" && <option value="">Choose…</option>}
                         {CARRIER_CHOICES.map((name) => (
                           <option key={name} value={name}>
                             {name}

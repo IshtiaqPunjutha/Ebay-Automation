@@ -203,3 +203,16 @@ stops growing, or about 80 steps have passed. A cost that was already sent is no
 The extension also reads every step of AliExpress's tracking page (title, description, carrier note, time). On the
 **Dispatched** tab the Status column shows the newest step under the badge, and **All steps** opens the whole list
 (loaded only when you click). Parcels that were finished before this version are read once more to get their steps.
+
+### Orders with several items, and sending without a carrier name (extension 1.8.1)
+
+- An eBay order with more than one item shows **one row per item**, each with the order number, date, buyer and status
+  repeated. Each item has **its own AliExpress number** (add it on that row, or sync it: the extension lists each item as
+  its own choice, and links opened with the arrow remember which item they were for). Total and earnings show once.
+  Sending tracking to eBay still needs exactly one AliExpress order on an eBay order, so an order with several AliExpress
+  parcels must have its tracking added by hand on eBay for now.
+- Any AliExpress page you open now lets the extension look at your parcels (at most every 15 minutes): parcels still
+  waiting for their carrier name are read at once instead of after the 2.5 hour wait.
+- An order whose tracking number is known but whose carrier AliExpress has not shown can still be ticked and sent by
+  hand: the review screen asks you to choose the carrier (a suggestion is pre-selected for numbers like JJD... = InPost,
+  QP...GB = Royal Mail, H0... = Evri). The automatic job still waits for a carrier name.

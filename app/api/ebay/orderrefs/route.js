@@ -34,7 +34,7 @@ export async function GET(request) {
   }
 }
 
-// PUT /api/ebay/orderrefs?store=<storeId>   body: { orderId, aliOrderIds: ["..."] }
+// PUT /api/ebay/orderrefs?store=<storeId>   body: { orderId, aliOrderIds: ["..."], lines?: { [aliOrderId]: lineItemId } }
 // Replaces the AliExpress order numbers of one eBay order. An empty list clears them.
 export async function PUT(request) {
   const storeId = new URL(request.url).searchParams.get("store");
@@ -62,8 +62,23 @@ export async function PUT(request) {
     );
   }
 
+  // Optional: which line item each number was bought for.
+  let lines;
+  if (body.lines !== undefined) {
+    if (!body.lines || typeof body.lines !== "object" || Array.isArray(body.lines)) {
+      return NextResponse.json({ error: "lines must be an object" }, { status: 400 });
+    }
+    lines = {};
+    for (const [id, lineItemId] of Object.entries(body.lines)) {
+      if (!ids.includes(id) || typeof lineItemId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(lineItemId)) {
+        return NextResponse.json({ error: "Invalid line item mapping" }, { status: 400 });
+      }
+      lines[id] = lineItemId;
+    }
+  }
+
   try {
-    const entry = await setOrderRefs(auth.userId, storeId, orderId, ids);
+    const entry = await setOrderRefs(auth.userId, storeId, orderId, ids, lines);
     return NextResponse.json({ ok: true, entry });
   } catch (err) {
     console.error(`Error saving order refs for store ${storeId}:`, err);

@@ -277,7 +277,7 @@ function TrackingCell({ shipments }) {
 
 // Opens the product's AliExpress page. The first link (the column next to the
 // eBay link in the sheet) is the main one; extra links sit behind a "+N" menu.
-function AliExpressOpen({ links, orderId, storeId, addressText }) {
+function AliExpressOpen({ links, orderId, storeId, addressText, lineItemId = "" }) {
   // Opening the AliExpress product also puts the buyer's full address on the clipboard, ready for the
   // order-autofill extension to fill into AliExpress checkout.
   const [addressCopied, setAddressCopied] = useState(false);
@@ -306,6 +306,7 @@ function AliExpressOpen({ links, orderId, storeId, addressText }) {
       const url = new URL(link);
       if (orderId) url.searchParams.set("ebayOrder", orderId);
       if (storeId) url.searchParams.set("ebayStore", storeId);
+      if (lineItemId) url.searchParams.set("ebayLine", lineItemId);
       return url.toString();
     } catch (e) {
       return link;
@@ -695,12 +696,12 @@ export default function OrdersView({ status = "new" }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [storeId]);
 
-  async function saveOrderRef(orderId, aliOrderIds) {
+  async function saveOrderRef(orderId, aliOrderIds, lines) {
     const before = orderRefs;
     // Show the change straight away; put it back if saving fails.
     setOrderRefs((prev) => {
       const next = { ...prev };
-      if (aliOrderIds.length) next[orderId] = { aliOrderIds, updatedAt: Date.now() };
+      if (aliOrderIds.length) next[orderId] = { aliOrderIds, ...(lines ? { lines } : prev[orderId]?.lines ? { lines: prev[orderId].lines } : {}), updatedAt: Date.now() };
       else delete next[orderId];
       return next;
     });
@@ -709,7 +710,7 @@ export default function OrdersView({ status = "new" }) {
       const res = await fetch(`/api/ebay/orderrefs?store=${encodeURIComponent(storeId)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, aliOrderIds }),
+        body: JSON.stringify({ orderId, aliOrderIds, ...(lines ? { lines } : {}) }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save the order number.");
     } catch (err) {
@@ -936,6 +937,7 @@ export default function OrdersView({ status = "new" }) {
       trackingNumber: ready.trackingNumber,
       serviceText: ready.carrierText,
       carrierName: ready.carrierName,
+      carrierGuess: ready.carrierGuess || "",
     };
   });
 
@@ -1284,26 +1286,42 @@ export default function OrdersView({ status = "new" }) {
                       const phone = order.shipTo.phone;
                       // Everything a courier label needs, one item per line.
                       const fullBlock = [recipient, ...addressParts, phone].filter(Boolean).join("\n");
+                      // An order with several items has one AliExpress order per item: this row shows (and edits) only its own.
+                      // Numbers saved without an item belong to the first row.
+                      const refEntry = orderRefs[order.orderId] || {};
+                      const allIds = refEntry.aliOrderIds || [];
+                      const multi = order.lineItems.length > 1;
+                      const rowIds = multi ? allIds.filter((id) => (refEntry.lines?.[id] ? refEntry.lines[id] === li.lineItemId : idx === 0)) : allIds;
+                      function saveRowIds(newRowIds) {
+                        const others = allIds.filter((id) => !rowIds.includes(id));
+                        const nextIds = [...others, ...newRowIds];
+                        if (!multi) return saveOrderRef(order.orderId, nextIds);
+                        const lines = {};
+                        for (const id of nextIds) {
+                          const mapped = refEntry.lines?.[id];
+                          if (mapped) lines[id] = mapped;
+                          else if (newRowIds.includes(id) && !rowIds.includes(id)) lines[id] = li.lineItemId;
+                        }
+                        return saveOrderRef(order.orderId, nextIds, lines);
+                      }
                       // The AliExpress number (with eBay's tracking under it on the dispatched tab). On the dispatched tab it
                       // sits next to Status, near the left, so it stays in view on a small screen.
                       const aliCell = (
                         <td style={{ minWidth: "190px" }}>
-                          {idx === 0 && (
-                            <AliOrderCell
-                              ids={orderRefs[order.orderId]?.aliOrderIds || []}
-                              // Once an order is dispatched, eBay's own tracking is shown under it instead.
-                              tracking={status === "new" ? tracking : {}}
-                              onSave={(ids) => saveOrderRef(order.orderId, ids)}
-                              disabled={savingRef}
-                            />
-                          )}
+                          <AliOrderCell
+                            ids={rowIds}
+                            // Once an order is dispatched, eBay's own tracking is shown under it instead.
+                            tracking={status === "new" ? tracking : {}}
+                            onSave={saveRowIds}
+                            disabled={savingRef}
+                          />
                           {status === "dispatched" && idx === 0 && <TrackingCell shipments={order.shipments} />}
                         </td>
                       );
                       // The status column sits right after Order on the dispatched tab, so it stays in view on a small screen.
                       const statusCell = (
                           <td>
-                            {idx === 0 && (
+                            {(
                               <div className="status-cell">
                                 {status === "dispatched" && deliveries[order.orderId] ? (
                                   <span className="badge badge-success">
@@ -1323,7 +1341,7 @@ export default function OrdersView({ status = "new" }) {
                                     Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}
                                   </span>
                                 )}
-                                {status === "dispatched" && (
+                                {status === "dispatched" && idx === 0 && (
                                   <button
                                     type="button"
                                     className="link-button"
@@ -1334,7 +1352,7 @@ export default function OrdersView({ status = "new" }) {
                                 )}
                                 {/* Where the parcel is, from AliExpress's tracking page: the newest step, and all steps on click. */}
                                 {status === "dispatched" &&
-                                  (orderRefs[order.orderId]?.aliOrderIds || []).map((aliId) => (
+                                  rowIds.map((aliId) => (
                                     <ParcelProgress key={aliId} storeId={storeId} aliOrderId={aliId} record={tracking[aliId]} />
                                   ))}
                               </div>
@@ -1355,7 +1373,7 @@ export default function OrdersView({ status = "new" }) {
                                         checked={ready.ok && selected.has(order.orderId)}
                                         onChange={() => toggleSelected(order.orderId)}
                                         disabled={!ready.ok}
-                                        title={ready.ok ? `Send tracking ${ready.trackingNumber} to eBay` : ready.reason}
+                                        title={ready.ok ? (ready.carrierName ? `Send tracking ${ready.trackingNumber} to eBay` : `Send tracking ${ready.trackingNumber}. AliExpress has not shown the carrier: you choose it on the next screen.`) : ready.reason}
                                         aria-label={`Select order ${order.orderId}`}
                                       />
                                     );
@@ -1385,6 +1403,7 @@ export default function OrdersView({ status = "new" }) {
                                   links={li.legacyItemId ? aliLinks[li.legacyItemId] : undefined}
                                   orderId={order.orderId}
                                   storeId={storeId}
+                                  lineItemId={multi ? li.lineItemId : ""}
                                   addressText={fullBlock}
                                 />
                                 {li.imageUrl ? (
@@ -1415,11 +1434,11 @@ export default function OrdersView({ status = "new" }) {
                               </div>
                             </td>
                             <td>
-                              {idx === 0 && (
+                              {(
                                 <>
                                   <div className="mono" style={{ color: "var(--text-primary)" }}>{order.orderId}</div>
                                   <div className="item-meta">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ""}</div>
-                                  {status === "new" && !(orderRefs[order.orderId]?.aliOrderIds || []).length && (
+                                  {status === "new" && !rowIds.length && (
                                     <span className="badge badge-new" title="No AliExpress number yet. This tag goes away once the order is synced.">
                                       New
                                     </span>
@@ -1451,7 +1470,7 @@ export default function OrdersView({ status = "new" }) {
                               )}
                             </td>
                             <td style={{ minWidth: "200px" }}>
-                              {idx === 0 && (
+                              {(
                                 <>
                                   <div style={{ fontWeight: 500 }}>{recipient}</div>
                                   {phone ? (

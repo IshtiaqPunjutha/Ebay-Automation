@@ -92,9 +92,10 @@
   // list without repeats; the arrow entry wins but borrows the dashboard's details.
   function mergeChoices(arrowEntries, dashboardEntries) {
     const byKey = new Map();
-    for (const e of dashboardEntries || []) byKey.set(`${e.storeId}|${e.orderId}`, { ...e, source: "dashboard" });
+    // An order with several items has one entry per item (lineItemId), so the key includes it.
+    for (const e of dashboardEntries || []) byKey.set(`${e.storeId}|${e.orderId}|${e.lineItemId || ""}`, { ...e, source: "dashboard" });
     for (const e of arrowEntries || []) {
-      const key = `${e.storeId}|${e.orderId}`;
+      const key = `${e.storeId}|${e.orderId}|${e.lineItemId || ""}`;
       const known = byKey.get(key) || {};
       byKey.set(key, { ...known, ...e, aliItemIds: known.aliItemIds || [], source: "arrow" });
     }

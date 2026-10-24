@@ -20,13 +20,17 @@ async function savePending(list) {
 }
 
 async function addPending(entry) {
-  const list = (await getPending()).filter((p) => !(p.orderId === entry.orderId && p.storeId === entry.storeId));
+  const list = (await getPending()).filter(
+    (p) => !(p.orderId === entry.orderId && p.storeId === entry.storeId && (p.lineItemId || "") === (entry.lineItemId || ""))
+  );
   list.unshift({ ...entry, addedAt: Date.now() });
   await savePending(list);
 }
 
-async function removePending(orderId, storeId) {
-  await savePending((await getPending()).filter((p) => !(p.orderId === orderId && p.storeId === storeId)));
+async function removePending(orderId, storeId, lineItemId = "") {
+  await savePending(
+    (await getPending()).filter((p) => !(p.orderId === orderId && p.storeId === storeId && (p.lineItemId || "") === (lineItemId || "")))
+  );
 }
 
 async function api(path, options = {}) {
@@ -236,6 +240,38 @@ async function hasOrdersWaitingForTracking() {
   );
 }
 
+// Puts every synced, unfinished order (recent ones) in the tracking queue; enqueueTracking itself skips the ones
+// that were read recently.
+async function enqueueUnfinished() {
+  const { synced } = await chrome.storage.local.get("synced");
+  const states = await getTrackState();
+  for (const [id, value] of Object.entries(synced || {})) {
+    if (trackingDone(states[id])) continue;
+    if (value.at && Date.now() - value.at > AUTO_RECENT_MS) continue;
+    await enqueueTracking(id, trackingUrlFor(id));
+  }
+}
+
+// Opening any AliExpress page (in this browser) is a good moment to look at the parcels: the extension then reads
+// the ones still waiting for their carrier name at once, and the others if they are due. Not more often than every
+// 15 minutes, and never from the extension's own tabs.
+const QUICK_COOLDOWN_MS = 15 * 60 * 1000;
+async function quickCheck() {
+  if (autoRunning || trackRunning) return;
+  const settings = await getSettings();
+  if (!AliSyncLib.originOf(settings.dashboardUrl) || !settings.token) return;
+  if (!(await autoSettingOn())) return;
+  const { lastQuickCheck } = await chrome.storage.local.get("lastQuickCheck");
+  if (lastQuickCheck && Date.now() - lastQuickCheck < QUICK_COOLDOWN_MS) return;
+  await chrome.storage.local.set({ lastQuickCheck: Date.now() });
+
+  // A parcel that is still waiting for its carrier name should not wait for its 2.5 hour retry now.
+  const all = await getTrackState();
+  for (const v of Object.values(all)) if (!trackingDone(v) && !v.carrierName) delete v.attemptAt;
+  await chrome.storage.local.set({ trackState: all });
+  await enqueueUnfinished();
+}
+
 async function autoCheck({ force = false } = {}) {
   if (autoRunning) return { ok: true, skipped: "already running" };
   const settings = await getSettings();
@@ -254,15 +290,7 @@ async function autoCheck({ force = false } = {}) {
     }
     // Read every synced, unfinished order straight from its tracking page. A delivered order often has no
     // "Track status" link on the orders list any more, so the list alone would never find it.
-    {
-      const { synced } = await chrome.storage.local.get("synced");
-      const states = await getTrackState();
-      for (const [id, value] of Object.entries(synced || {})) {
-        if (trackingDone(states[id])) continue;
-        if (value.at && Date.now() - value.at > AUTO_RECENT_MS) continue;
-        await enqueueTracking(id, trackingUrlFor(id));
-      }
-    }
+    await enqueueUnfinished();
     autoScanDone = false;
     tab = await chrome.tabs.create({ url: ORDERS_URL, active: false });
     autoTabId = tab.id;
@@ -326,6 +354,7 @@ async function getCandidates() {
         storeId: store.storeId,
         storeLabel: store.label,
         orderId: order.orderId,
+        lineItemId: order.lineItemId || "",
         shipped: Boolean(order.shipped),
         buyer: order.buyer || "",
         title: order.title || "",
@@ -399,6 +428,7 @@ async function handle(message, sender) {
       await addPending({
         orderId: String(message.orderId),
         storeId: String(message.storeId),
+        lineItemId: String(message.lineItemId || ""),
         aliItemId: message.aliItemId || "",
         aliUrl: message.aliUrl || "",
       });
@@ -406,7 +436,7 @@ async function handle(message, sender) {
     case "GET_PENDING":
       return { ok: true, pending: await getPending() };
     case "REMOVE_PENDING":
-      await removePending(String(message.orderId), String(message.storeId));
+      await removePending(String(message.orderId), String(message.storeId), String(message.lineItemId || ""));
       return { ok: true };
     case "GET_STATE": {
       try {
@@ -461,6 +491,13 @@ async function handle(message, sender) {
       if (result.ok) await chrome.storage.local.set({ costSent: { ...(costSent || {}), [aliOrderId]: key } });
       return result;
     }
+    case "PAGE_OPENED": {
+      // Not from the tabs the extension opened itself (that would start another check from inside a check).
+      const tabId = sender?.tab?.id;
+      if (tabId !== undefined && (tabId === autoTabId || trackTabs.has(tabId))) return { ok: true, skipped: "own tab" };
+      quickCheck().catch(() => {});
+      return { ok: true };
+    }
     case "IS_AUTO_TAB":
       return { ok: true, auto: sender?.tab?.id !== undefined && sender.tab.id === autoTabId };
     case "AUTO_SCAN_DONE":
@@ -473,13 +510,14 @@ async function handle(message, sender) {
           storeId: message.storeId,
           orderId: message.orderId,
           aliOrderId: message.aliOrderId,
+          lineItemId: message.lineItemId || undefined,
         }),
       });
       if (result.ok) {
         const { synced } = await chrome.storage.local.get("synced");
         const next = { ...(synced || {}), [message.aliOrderId]: { orderId: message.orderId, storeId: message.storeId, at: Date.now() } };
         await chrome.storage.local.set({ synced: next });
-        await removePending(message.orderId, message.storeId);
+        await removePending(message.orderId, message.storeId, message.lineItemId || "");
         candidateCache = null; // the dashboard's list has changed
       }
       return result;
