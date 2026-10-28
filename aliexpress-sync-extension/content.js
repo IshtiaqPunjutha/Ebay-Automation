@@ -60,7 +60,9 @@
 
   // Messages stack in the top right corner instead of covering each other. An optional
   // action (such as Undo) shows as a small button inside the message.
-  function toast(text, isError = false, action = null) {
+  function toast(text, isError = false, actionOrActions = null) {
+    const actions = actionOrActions ? [].concat(actionOrActions) : [];
+    const action = actions.length ? actions[0] : null;
     const show = () => {
       let box = document.getElementById("ebay-sync-toasts");
       if (!box) {
@@ -77,15 +79,15 @@
         `max-width:360px;padding:10px 14px;border-radius:8px;background:#202124;color:#fff;border-left:4px solid ${isError ? "#d93025" : "#188038"};font:13px/1.4 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:auto;`
       );
       t.appendChild(el("div", { textContent: text }));
-      if (action) {
+      for (const act of actions) {
         const button = el(
           "button",
-          { type: "button", textContent: action.label },
-          "margin-top:6px;padding:3px 12px;border:1px solid #8ab4f8;border-radius:12px;background:transparent;color:#8ab4f8;font:600 12px Arial,sans-serif;cursor:pointer;"
+          { type: "button", textContent: act.label },
+          "margin:6px 6px 0 0;padding:3px 12px;border:1px solid #8ab4f8;border-radius:12px;background:transparent;color:#8ab4f8;font:600 12px Arial,sans-serif;cursor:pointer;"
         );
         button.addEventListener("click", () => {
           t.remove();
-          action.onClick();
+          act.onClick();
         });
         t.appendChild(button);
       }
@@ -449,6 +451,10 @@
     search.focus();
   }
 
+  // The orders on the last list of choices, so that after a sync the same buyer's other orders can be offered.
+  let lastChoices = [];
+  const buyerKey = (e) => String(e.buyer || "").trim().toLowerCase();
+
   async function sync(button, id, node, entry) {
     button.textContent = "Syncing…";
     button.disabled = true;
@@ -466,14 +472,47 @@
           toast(undone?.ok ? `Removed ${id} from eBay order ${entry.orderId}.` : undone?.error || "Could not undo.", !undone?.ok);
         },
       });
+      offerSameBuyer(id, entry);
     } else {
       paint(button, id);
       toast(res?.error || "Could not sync this number.", true);
     }
   }
 
+  // One AliExpress order is often one parcel for several eBay orders of the same buyer (even of different stores).
+  // After a sync, the buyer's other orders that still wait for a number are offered with one click.
+  function offerSameBuyer(aliId, entry) {
+    const key = buyerKey(entry);
+    if (!key) return;
+    const seen = new Set();
+    const siblings = lastChoices.filter((c) => {
+      if (c.scope === "item" || c.shipped || buyerKey(c) !== key) return false;
+      if (c.orderId === entry.orderId && c.storeId === entry.storeId) return false;
+      const k = `${c.storeId}|${c.orderId}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (siblings.length === 0) return;
+    toast(`${entry.buyer} has ${siblings.length} more order${siblings.length === 1 ? "" : "s"} waiting: ${siblings.map((s) => s.orderId).join(", ")}. Is ${aliId} the same parcel?`, false, {
+      label: `Also link to ${siblings.length === 1 ? "it" : `all ${siblings.length}`}`,
+      onClick: async () => {
+        let done = 0;
+        let failed = "";
+        for (const s of siblings) {
+          const res = await send({ type: "SYNC", storeId: s.storeId, orderId: s.orderId, aliOrderId: aliId, lineItemId: "" });
+          if (res?.ok) done += 1;
+          else failed = res?.error || "failed";
+        }
+        await refreshState();
+        toast(failed ? `Linked ${done}, then: ${failed}` : `Linked ${aliId} to ${done} more order${done === 1 ? "" : "s"} of ${entry.buyer}.`, Boolean(failed));
+      },
+    });
+  }
+
   async function onClick(button, id, node) {
-    if (state.synced[id]) return;
+    // A number that is already synced can still be linked to another order (the same buyer's second order, for example).
+    const alreadySynced = Boolean(state.synced[id]);
     button.textContent = "Loading…";
     button.disabled = true;
     await refreshState();
@@ -495,6 +534,7 @@
     button.disabled = false;
 
     const choices = lib.mergeChoices(arrow, fromDashboard?.ok ? fromDashboard.candidates : []);
+    lastChoices = choices;
     if (choices.length === 0) {
       return toast(
         fromDashboard?.ok
@@ -514,7 +554,7 @@
     // order of the same product must not steal a new purchase.
     const matches = lib.matchesByProduct(choices, card.itemIds);
     const freshMatches = matches.filter((m) => !m.shipped);
-    if (freshMatches.length === 1) return sync(button, id, node, freshMatches[0]);
+    if (freshMatches.length === 1 && !alreadySynced) return sync(button, id, node, freshMatches[0]);
 
     // Rank by how well each order fits the card (title words, chosen size/colour), then by
     // arrow / newest. Same-product orders always come first.

@@ -2351,3 +2351,43 @@ tr.buyer-group > td.check-col {
   letter-spacing: 0.04em;
   margin: 4px 0 3px;
 }
+
+/* A line through all the rows of one buyer, with a dot where each order starts */
+tr.linked > td:first-child {
+  position: relative;
+}
+
+tr.linked > td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+tr.link-first > td:first-child::before {
+  top: 24px;
+  border-radius: 2px 2px 0 0;
+}
+
+tr.link-last > td:first-child::before {
+  bottom: auto;
+  height: 24px;
+  border-radius: 0 0 2px 2px;
+}
+
+tr.link-order-start > td:first-child::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 19px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-sizing: border-box;
+}

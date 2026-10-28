@@ -44,11 +44,15 @@ export async function POST(request) {
 
   try {
     const stores = (await listEbayStores(auth.userId)).filter((s) => canUseStore(auth, s.storeId));
+    // One AliExpress order can belong to several eBay orders (one buyer, one parcel), in this store or in another
+    // of the person's stores: the tracking is saved for every store that uses the number, and every eBay order that
+    // has all of its parcels delivered is marked delivered.
+    const events = cleanEvents(body.events);
+    const results = [];
     for (const store of stores) {
       const refs = await getOrderRefs(auth.userId, store.storeId);
-      const orderId = Object.keys(refs).find((id) => (refs[id].aliOrderIds || []).includes(aliOrderId));
-      if (!orderId) continue;
-      const events = cleanEvents(body.events);
+      const orderIds = Object.keys(refs).filter((id) => (refs[id].aliOrderIds || []).includes(aliOrderId));
+      if (orderIds.length === 0) continue;
       if (events.length) await setTrackEvents(auth.userId, store.storeId, aliOrderId, events);
       const saved = await setTracking(auth.userId, store.storeId, aliOrderId, {
         // The newest step, for the Status column.
@@ -64,20 +68,24 @@ export async function POST(request) {
         ...(body.delivered === true ? { delivered: true, deliveredText: text(body.deliveredTime, 60) } : {}),
       });
 
-      // The eBay order counts as delivered once EVERY AliExpress parcel of it is delivered.
-      let markedDelivered = false;
+      // An eBay order counts as delivered once EVERY AliExpress parcel of it is delivered.
+      const markedDelivered = [];
       if (saved.delivered) {
         const all = await getTracking(auth.userId, store.storeId);
-        const parcels = refs[orderId].aliOrderIds || [];
-        if (parcels.length > 0 && parcels.every((id) => all[id]?.delivered)) {
-          const already = await getDeliveries(auth.userId, store.storeId);
-          if (!already[orderId]) {
+        const already = await getDeliveries(auth.userId, store.storeId);
+        for (const orderId of orderIds) {
+          const parcels = refs[orderId].aliOrderIds || [];
+          if (parcels.length > 0 && parcels.every((id) => all[id]?.delivered) && !already[orderId]) {
             await setDeliveries(auth.userId, store.storeId, [orderId], true, { source: "aliexpress" });
-            markedDelivered = true;
+            markedDelivered.push(orderId);
           }
         }
       }
-      return NextResponse.json({ ok: true, storeId: store.storeId, orderId, tracking: saved, markedDelivered });
+      results.push({ storeId: store.storeId, orderIds, tracking: saved, markedDelivered });
+    }
+    if (results.length > 0) {
+      const first = results[0];
+      return NextResponse.json({ ok: true, storeId: first.storeId, orderId: first.orderIds[0], tracking: first.tracking, markedDelivered: first.markedDelivered.length > 0, linked: results });
     }
     return NextResponse.json({ error: "That AliExpress order is not synced to an eBay order yet." }, { status: 404 });
   } catch (err) {

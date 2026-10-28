@@ -225,3 +225,12 @@ whole-order number empty and add a number **for each item** on its own row ("Thi
 an item's number turns it into a whole-order number. In the extension's choice list an order with several items appears as
 "whole order" and "this item only". Each row also shows what the buyer paid for that item, and orders of the same buyer
 sit together with a "Same buyer" tag.
+
+### One buyer, several orders (extension 1.10.0)
+
+Rows of the same buyer (several items of one order, or several orders) are joined by a **line down the left side** with a dot
+where each order starts. An AliExpress number can belong to several eBay orders (one parcel for one buyer), also in different
+stores: after a sync the extension offers the buyer's other waiting orders ("Also link to all N"), and a number that already
+shows **Synced** can be clicked to link it to one more order. Tracking, courier and delivered status are saved for every order
+that uses the number, and its AliExpress cost is split between them (across stores too; across stores an odd penny can stay
+unassigned).

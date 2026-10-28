@@ -944,6 +944,12 @@ export default function OrdersView({ status = "new" }) {
     placedBuyers.add(k);
     groupedOrders.push(...ordersOfBuyer.get(k));
   }
+  // The table rows of each buyer in display order, to draw one connector line through all of them.
+  const rowsOfBuyer = new Map();
+  for (const o of groupedOrders) {
+    const k = buyerKeyOf(o);
+    for (const l of o.lineItems) rowsOfBuyer.set(k, [...(rowsOfBuyer.get(k) || []), `${o.orderId}-${l.lineItemId}`]);
+  }
 
   // New orders whose AliExpress tracking is in and that can be sent to eBay (same rule as the server).
   const readyOf = (order) => (status === "new" ? checkReadyToShip(order.orderId, orderRefs, tracking, sentTracking) : { ok: false });
@@ -1326,6 +1332,13 @@ export default function OrdersView({ status = "new" }) {
                       const multi = order.lineItems.length > 1;
                       // The buyer's other orders in this list.
                       const buyerOthers = (ordersOfBuyer.get(buyerKeyOf(order)) || []).filter((o) => o.orderId !== order.orderId);
+                      // A line runs down the left of every row of one buyer (several items, or several orders); a dot marks where each order starts.
+                      const buyerRows = rowsOfBuyer.get(buyerKeyOf(order)) || [];
+                      const rowPos = buyerRows.indexOf(rowKey);
+                      const linkClass =
+                        buyerRows.length > 1
+                          ? `linked ${rowPos === 0 ? "link-first" : rowPos === buyerRows.length - 1 ? "link-last" : "link-mid"}${idx === 0 ? " link-order-start" : ""}`
+                          : "";
                       // A number saved without an item covers the whole order; a number saved for an item covers just that item.
                       const wholeIds = allIds.filter((id) => !refEntry.lines?.[id]);
                       const itemIds = multi ? allIds.filter((id) => refEntry.lines?.[id] === li.lineItemId) : [];
@@ -1438,7 +1451,7 @@ export default function OrdersView({ status = "new" }) {
                       );
                       return (
                         <Fragment key={rowKey}>
-                          <tr className={[idx > 0 ? "order-cont" : "", buyerOthers.length ? "buyer-group" : ""].filter(Boolean).join(" ") || undefined}>
+                          <tr className={[idx > 0 ? "order-cont" : "", linkClass].filter(Boolean).join(" ") || undefined}>
                             {status === "new" && (
                               <td className="check-col">
                                 {idx === 0 &&
