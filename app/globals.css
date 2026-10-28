@@ -2353,14 +2353,14 @@ tr.buyer-group > td.check-col {
 }
 
 /* A line through all the rows of one buyer, with a dot where each order starts */
-tr.linked > td:first-child {
+tr.linked > td:has(> .item-cell) {
   position: relative;
 }
 
-tr.linked > td:first-child::before {
+tr.linked > td:has(> .item-cell)::before {
   content: "";
   position: absolute;
-  left: 3px;
+  left: 2px;
   top: 0;
   bottom: 0;
   width: 3px;
@@ -2368,21 +2368,21 @@ tr.linked > td:first-child::before {
   opacity: 0.55;
 }
 
-tr.link-first > td:first-child::before {
+tr.link-first > td:has(> .item-cell)::before {
   top: 24px;
   border-radius: 2px 2px 0 0;
 }
 
-tr.link-last > td:first-child::before {
+tr.link-last > td:has(> .item-cell)::before {
   bottom: auto;
   height: 24px;
   border-radius: 0 0 2px 2px;
 }
 
-tr.link-order-start > td:first-child::after {
+tr.link-order-start > td:has(> .item-cell)::after {
   content: "";
   position: absolute;
-  left: -1px;
+  left: -3px;
   top: 19px;
   width: 11px;
   height: 11px;
@@ -2390,4 +2390,13 @@ tr.link-order-start > td:first-child::after {
   background: var(--accent);
   border: 2px solid var(--surface);
   box-sizing: border-box;
+}
+
+/* No dividing line between the rows of one buyer */
+.data-table tbody tr.linked:not(.link-last) > td {
+  border-bottom-color: transparent;
+}
+
+.data-table tbody tr.linked + tr.linked > td {
+  border-top-color: transparent;
 }
