@@ -116,7 +116,7 @@ function ParcelProgress({ storeId, aliOrderId, record }) {
   );
 }
 
-function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
+function AliOrderCell({ ids, onSave, disabled, tracking = {}, addLabel = "Add order no.", heading = "", onWiden }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [problem, setProblem] = useState("");
@@ -140,6 +140,7 @@ function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
 
   return (
     <div className="ali-order-cell">
+      {heading && <div className="ali-heading">{heading}</div>}
       {ids.map((id) => {
         const track = tracking[id];
         return (
@@ -156,6 +157,18 @@ function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
                 {id}
               </a>
               <CopyButton text={id} label="Copy AliExpress order number" />
+              {onWiden && (
+                <button
+                  type="button"
+                  className="chip-remove"
+                  onClick={() => onWiden(id)}
+                  title="This number is for the whole order, not just this item"
+                  aria-label={`Use ${id} for the whole order`}
+                  disabled={disabled}
+                >
+                  all
+                </button>
+              )}
               <button
                 type="button"
                 className="chip-remove"
@@ -225,7 +238,7 @@ function AliOrderCell({ ids, onSave, disabled, tracking = {} }) {
       ) : ids.length === 0 ? (
         // Once an order number is there the button goes away; remove the number (x) to add a different one.
         <button type="button" className="ali-order-add" onClick={() => setAdding(true)} disabled={disabled}>
-          + Add order no.
+          + {addLabel}
         </button>
       ) : null}
     </div>
@@ -912,6 +925,26 @@ export default function OrdersView({ status = "new" }) {
   );
   const singleCurrency = currenciesOnPage.size === 1 ? [...currenciesOnPage][0] : "";
 
+  // Orders of the same buyer sit together, so a buyer who ordered more than once is easy to see: their parcels can be
+  // bought and shipped together. The groups keep the order in which each buyer first appears.
+  const buyerKeyOf = (o) => {
+    const name = String(o.shipTo?.fullName || o.buyerUsername || "").trim().toLowerCase();
+    return name ? `${name}|${String(o.shipTo?.postalCode || "").replace(/\s+/g, "").toLowerCase()}` : `order:${o.orderId}`;
+  };
+  const ordersOfBuyer = new Map();
+  for (const o of visibleOrders) {
+    const k = buyerKeyOf(o);
+    ordersOfBuyer.set(k, [...(ordersOfBuyer.get(k) || []), o]);
+  }
+  const groupedOrders = [];
+  const placedBuyers = new Set();
+  for (const o of visibleOrders) {
+    const k = buyerKeyOf(o);
+    if (placedBuyers.has(k)) continue;
+    placedBuyers.add(k);
+    groupedOrders.push(...ordersOfBuyer.get(k));
+  }
+
   // New orders whose AliExpress tracking is in and that can be sent to eBay (same rule as the server).
   const readyOf = (order) => (status === "new" ? checkReadyToShip(order.orderId, orderRefs, tracking, sentTracking) : { ok: false });
   const readyOrders = visibleOrders.filter((order) => readyOf(order).ok);
@@ -1267,7 +1300,7 @@ export default function OrdersView({ status = "new" }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleOrders.map((order) =>
+                  {groupedOrders.map((order) =>
                     order.lineItems.map((li, idx) => {
                       const rowKey = `${order.orderId}-${li.lineItemId}`;
                       const variantText = Object.entries(li.variants || {})
@@ -1291,30 +1324,74 @@ export default function OrdersView({ status = "new" }) {
                       const refEntry = orderRefs[order.orderId] || {};
                       const allIds = refEntry.aliOrderIds || [];
                       const multi = order.lineItems.length > 1;
-                      const rowIds = multi ? allIds.filter((id) => (refEntry.lines?.[id] ? refEntry.lines[id] === li.lineItemId : idx === 0)) : allIds;
-                      function saveRowIds(newRowIds) {
-                        const others = allIds.filter((id) => !rowIds.includes(id));
-                        const nextIds = [...others, ...newRowIds];
+                      // The buyer's other orders in this list.
+                      const buyerOthers = (ordersOfBuyer.get(buyerKeyOf(order)) || []).filter((o) => o.orderId !== order.orderId);
+                      // A number saved without an item covers the whole order; a number saved for an item covers just that item.
+                      const wholeIds = allIds.filter((id) => !refEntry.lines?.[id]);
+                      const itemIds = multi ? allIds.filter((id) => refEntry.lines?.[id] === li.lineItemId) : [];
+                      const covered = wholeIds.length > 0 || itemIds.length > 0;
+                      // The AliExpress orders whose progress is shown in this row.
+                      const parcelIds = multi ? [...(idx === 0 ? wholeIds : []), ...itemIds] : allIds;
+                      function saveWhole(newWholeIds) {
+                        const mapped = allIds.filter((id) => refEntry.lines?.[id]);
+                        const nextIds = [...mapped, ...newWholeIds];
                         if (!multi) return saveOrderRef(order.orderId, nextIds);
                         const lines = {};
+                        for (const id of mapped) lines[id] = refEntry.lines[id];
+                        return saveOrderRef(order.orderId, nextIds, lines);
+                      }
+                      function saveItem(newItemIds) {
+                        const nextIds = [...allIds.filter((id) => !itemIds.includes(id)), ...newItemIds];
+                        const lines = {};
                         for (const id of nextIds) {
-                          const mapped = refEntry.lines?.[id];
-                          if (mapped) lines[id] = mapped;
-                          else if (newRowIds.includes(id) && !rowIds.includes(id)) lines[id] = li.lineItemId;
+                          if (refEntry.lines?.[id]) lines[id] = refEntry.lines[id];
+                          else if (newItemIds.includes(id)) lines[id] = li.lineItemId;
                         }
                         return saveOrderRef(order.orderId, nextIds, lines);
+                      }
+                      // "all": make an item's number cover the whole order.
+                      function widen(id) {
+                        const lines = {};
+                        for (const other of allIds) if (other !== id && refEntry.lines?.[other]) lines[other] = refEntry.lines[other];
+                        return saveOrderRef(order.orderId, allIds, lines);
                       }
                       // The AliExpress number (with eBay's tracking under it on the dispatched tab). On the dispatched tab it
                       // sits next to Status, near the left, so it stays in view on a small screen.
                       const aliCell = (
                         <td style={{ minWidth: "190px" }}>
-                          <AliOrderCell
-                            ids={rowIds}
-                            // Once an order is dispatched, eBay's own tracking is shown under it instead.
-                            tracking={status === "new" ? tracking : {}}
-                            onSave={saveRowIds}
-                            disabled={savingRef}
-                          />
+                          {!multi && (
+                            <AliOrderCell
+                              ids={allIds}
+                              // Once an order is dispatched, eBay's own tracking is shown under it instead.
+                              tracking={status === "new" ? tracking : {}}
+                              onSave={saveWhole}
+                              disabled={savingRef}
+                            />
+                          )}
+                          {/* An order with several items: the number for the whole order sits on the first row; the items below
+                              only need their own when they were bought separately. */}
+                          {multi && idx === 0 && (
+                            <AliOrderCell
+                              ids={wholeIds}
+                              heading="Whole order"
+                              addLabel="Add for whole order"
+                              tracking={status === "new" ? tracking : {}}
+                              onSave={saveWhole}
+                              disabled={savingRef}
+                            />
+                          )}
+                          {multi && wholeIds.length === 0 && (
+                            <AliOrderCell
+                              ids={itemIds}
+                              heading="This item only"
+                              addLabel="Add for this item"
+                              tracking={status === "new" ? tracking : {}}
+                              onSave={saveItem}
+                              onWiden={widen}
+                              disabled={savingRef}
+                            />
+                          )}
+                          {multi && wholeIds.length > 0 && idx > 0 && <div className="item-meta">↑ covered by the order's number</div>}
                           {status === "dispatched" && idx === 0 && <TrackingCell shipments={order.shipments} />}
                         </td>
                       );
@@ -1352,7 +1429,7 @@ export default function OrdersView({ status = "new" }) {
                                 )}
                                 {/* Where the parcel is, from AliExpress's tracking page: the newest step, and all steps on click. */}
                                 {status === "dispatched" &&
-                                  rowIds.map((aliId) => (
+                                  parcelIds.map((aliId) => (
                                     <ParcelProgress key={aliId} storeId={storeId} aliOrderId={aliId} record={tracking[aliId]} />
                                   ))}
                               </div>
@@ -1361,7 +1438,7 @@ export default function OrdersView({ status = "new" }) {
                       );
                       return (
                         <Fragment key={rowKey}>
-                          <tr className={idx > 0 ? "order-cont" : undefined}>
+                          <tr className={[idx > 0 ? "order-cont" : "", buyerOthers.length ? "buyer-group" : ""].filter(Boolean).join(" ") || undefined}>
                             {status === "new" && (
                               <td className="check-col">
                                 {idx === 0 &&
@@ -1438,7 +1515,15 @@ export default function OrdersView({ status = "new" }) {
                                 <>
                                   <div className="mono" style={{ color: "var(--text-primary)" }}>{order.orderId}</div>
                                   <div className="item-meta">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ""}</div>
-                                  {status === "new" && !rowIds.length && (
+                                  {buyerOthers.length > 0 && (
+                                    <span
+                                      className="badge badge-buyer"
+                                      title={`Same buyer also has: ${buyerOthers.map((o) => `${o.orderId} (${o.lineItems.map((l) => l.title).join(", ").slice(0, 60)})`).join("; ")}`}
+                                    >
+                                      Same buyer · {buyerOthers.length + 1} orders
+                                    </span>
+                                  )}
+                                  {status === "new" && !covered && (
                                     <span className="badge badge-new" title="No AliExpress number yet. This tag goes away once the order is synced.">
                                       New
                                     </span>
@@ -1450,6 +1535,11 @@ export default function OrdersView({ status = "new" }) {
                             {status === "dispatched" && aliCell}
                             {/* Total and earnings share one narrow column: the total on top, what you earn (green) below. */}
                             <td className="num mono money-cell">
+                              {multi && li.lineTotal != null && (
+                                <div className="money-item" title="What the buyer paid for this item (price x quantity)">
+                                  item {singleCurrency ? li.lineTotal.toFixed(2) : `${order.currency || ""} ${li.lineTotal.toFixed(2)}`.trim()}
+                                </div>
+                              )}
                               {idx === 0 && (
                                 <>
                                   <div title="What the buyer paid">

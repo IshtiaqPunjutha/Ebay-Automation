@@ -2323,3 +2323,31 @@ a.list-row:hover,
 .parcel-step-desc {
   color: var(--text-secondary);
 }
+
+/* Several orders from one buyer, and the per-item amount of an order with more than one item */
+tr.buyer-group > td:first-child,
+tr.buyer-group > td.check-col {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.badge-buyer {
+  margin-top: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.money-item {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  margin-bottom: 2px;
+}
+
+.ali-heading {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 4px 0 3px;
+}

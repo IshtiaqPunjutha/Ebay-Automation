@@ -355,6 +355,7 @@ async function getCandidates() {
         storeLabel: store.label,
         orderId: order.orderId,
         lineItemId: order.lineItemId || "",
+        scope: order.scope || "",
         shipped: Boolean(order.shipped),
         buyer: order.buyer || "",
         title: order.title || "",

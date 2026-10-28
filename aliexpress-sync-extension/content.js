@@ -401,6 +401,7 @@
         entry.bestGuess ? "best guess" : "",
         entry.sameProduct ? "same product" : "",
         entry.shipped ? "already shipped" : "",
+        entry.scope === "order" ? "whole order" : entry.scope === "item" ? "this item only" : "",
         entry.source === "arrow" ? "opened from arrow" : "",
       ]
         .filter(Boolean)

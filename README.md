@@ -216,3 +216,12 @@ The extension also reads every step of AliExpress's tracking page (title, descri
 - An order whose tracking number is known but whose carrier AliExpress has not shown can still be ticked and sent by
   hand: the review screen asks you to choose the carrier (a suggestion is pre-selected for numbers like JJD... = InPost,
   QP...GB = Royal Mail, H0... = Evri). The automatic job still waits for a carrier name.
+
+### One AliExpress number for the whole order, or one per item (extension 1.9.0)
+
+An order with several items shows **Whole order** on its first row: one AliExpress number there covers every item (the other
+rows say "covered by the order's number" and the red New tag goes away). If the items were bought separately, leave the
+whole-order number empty and add a number **for each item** on its own row ("This item only"); the **all** button next to
+an item's number turns it into a whole-order number. In the extension's choice list an order with several items appears as
+"whole order" and "this item only". Each row also shows what the buyer paid for that item, and orders of the same buyer
+sit together with a "Same buyer" tag.
