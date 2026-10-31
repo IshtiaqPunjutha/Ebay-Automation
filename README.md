@@ -234,3 +234,6 @@ stores: after a sync the extension offers the buyer's other waiting orders ("Als
 shows **Synced** can be clicked to link it to one more order. Tracking, courier and delivered status are saved for every order
 that uses the number, and its AliExpress cost is split between them (across stores too; across stores an odd penny can stay
 unassigned).
+
+### Faster on long order lists (extension 1.10.1)
+The AliExpress orders page got slow with many orders: every scan re-read the text of every element on the page. Now the order numbers are found by walking the page's text only, a total that was already read is not worked out again, scans are spaced at least 2.5 s apart, skipped in a hidden tab, and not triggered by the extension's own buttons or by a page whose size did not change.

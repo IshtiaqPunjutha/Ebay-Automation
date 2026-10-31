@@ -145,7 +145,7 @@
   // synced to the dashboard and whose tracking has not been read yet, ask the background worker
   // to open that link in a background tab; the tracking page itself (below) reads the number.
   const askedForTracking = new Set();
-  function requestTracking() {
+  function requestTracking(refs) {
     for (const link of document.querySelectorAll('a[href*="/p/tracking/"]')) {
       const aliOrderId = lib.trackingOrderIdFromUrl(link.href);
       if (!aliOrderId || !state.synced[aliOrderId] || state.tracked[aliOrderId] || askedForTracking.has(aliOrderId)) continue;
@@ -153,7 +153,7 @@
       send({ type: "FETCH_TRACKING", aliOrderId, url: link.href });
     }
     // Orders without a "Track status" link on the list (delivered ones lose it) are read from their tracking page directly.
-    for (const { id } of findRefElements()) {
+    for (const { id } of refs || []) {
       if (!state.synced[id] || state.tracked[id] || askedForTracking.has(id)) continue;
       askedForTracking.add(id);
       send({ type: "FETCH_TRACKING", aliOrderId: id, url: `https://www.aliexpress.com/p/tracking/index.html?tradeOrderId=${encodeURIComponent(id)}` });
@@ -230,17 +230,45 @@
 
   // The smallest elements whose text holds an order number, e.g. the
   // <div>Ref. Number : 3077062172300812<span>Copy</span></div> of an order card.
+  // Found by walking the page's text nodes only (a long number in a small piece of text), so the cost
+  // grows with the text on the page, not with every element and everything nested in it. This is what
+  // kept the page slow when the list held many orders.
+  const LONG_NUMBER = /\d{12,20}/;
   function findRefElements() {
     const found = [];
-    for (const node of document.body.querySelectorAll("div, span, p, li")) {
-      if (node.closest(`[${BTN_ATTR}]`)) continue;
-      const text = node.textContent || "";
-      if (text.length > 90) continue;
-      const ids = lib.orderIdsFromText(text);
-      if (ids.length !== 1) continue;
-      // Skip containers whose child already holds the number; keep the innermost one.
-      if ([...node.children].some((child) => lib.orderIdsFromText(child.textContent || "").length === 1)) continue;
-      found.push({ node, id: ids[0] });
+    if (!document.body) return found;
+    const seen = new Set();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let textNode;
+    while ((textNode = walker.nextNode())) {
+      const value = textNode.nodeValue;
+      if (!value || value.length < 12 || !LONG_NUMBER.test(value)) continue;
+      // The smallest element around this text that also holds the label ("Ref. Number :").
+      let node = textNode.parentElement;
+      let id = "";
+      for (let up = 0; node && up < 3; up += 1, node = node.parentElement) {
+        if (node.closest(`[${BTN_ATTR}]`)) {
+          node = null;
+          break;
+        }
+        const text = node.textContent || "";
+        if (text.length > 90) {
+          node = null;
+          break;
+        }
+        const ids = lib.orderIdsFromText(text);
+        if (ids.length === 1) {
+          id = ids[0];
+          break;
+        }
+        if (ids.length > 1) {
+          node = null;
+          break;
+        }
+      }
+      if (!node || !id || seen.has(node)) continue;
+      seen.add(node);
+      found.push({ node, id });
     }
     return found;
   }
@@ -268,16 +296,23 @@
   // What was paid for each order: the "Total: £ 2.04" shown in its card. The scan starts from the
   // total (not from the Ref. Number): the first ancestor that holds exactly one order number is its card.
   const costsSent = new Map();
+  const totalSeen = new WeakMap();
   let lastCostLog = "";
   function scanCosts() {
     const totals = document.querySelectorAll('[class*="price-total"]');
     let found = 0;
     for (const totalNode of totals) {
       const money = lib.parseMoney(totalNode.textContent);
+      // A total that was already read and has not changed is not worked out again.
+      const known = totalSeen.get(totalNode);
+      if (known && money && known.text === totalNode.textContent) {
+        found += 1;
+        continue;
+      }
       let id = "";
       let box = totalNode.parentElement;
       for (let depth = 0; box && depth < 20; depth += 1, box = box.parentElement) {
-        const ids = lib.orderIdsFromText(box.innerText || "");
+        const ids = lib.orderIdsFromText(box.textContent || "");
         if (ids.length > 1) break;
         if (ids.length === 1) {
           id = ids[0];
@@ -293,13 +328,18 @@
         continue;
       }
       found += 1;
+      // Only remembered once the order is synced; before that it is looked at again (a number can be synced any moment).
+      if (state.synced[id]) totalSeen.set(totalNode, { text: totalNode.textContent });
       if (!state.synced[id]) continue;
       const key = `${money.amount}${money.currency}`;
       if (costsSent.get(id) === key) continue;
       costsSent.set(id, key);
       send({ type: "COST", aliOrderId: id, amount: money.amount, currency: money.currency }).then((res) => {
         // A failed save is tried again on the next scan.
-        if (!res?.ok) costsSent.delete(id);
+        if (!res?.ok) {
+          costsSent.delete(id);
+          totalSeen.delete(totalNode);
+        }
         console.log(`[AliExpress Sync] cost ${money.amount} ${money.currency} for ${id}:`, res?.ok ? "saved" : res?.error);
       });
     }
@@ -353,6 +393,10 @@
     // Only touch the DOM when something changed, or the page observer would see our own edit and rescan forever.
     const label = done ? "Synced ✓" : "Sync";
     if (button.textContent !== label) button.textContent = label;
+    // Styles and title are only written when the state changed (many orders = many buttons per scan).
+    const shown = done ? `1|${done.orderId}` : "0";
+    if (button.__painted === shown) return;
+    button.__painted = shown;
     button.title = done ? `Synced to eBay order ${done.orderId}` : "Send this number to your dashboard";
     button.style.cssText = done ? BTN_STYLE + "background:#188038;" : BTN_STYLE;
   }
@@ -575,11 +619,11 @@
   }
 
   function addButtons() {
-    if (!document.body) return;
-    // One cheap pass over the page text first; the element search below is only worth it when a number exists.
-    if (lib.orderIdsFromText(document.body.innerText).length === 0) return;
+    if (!document.body) return [];
+    const refs = findRefElements(); // one pass over the page, shared with the tracking check
+    if (refs.length === 0) return refs;
     scanCosts();
-    for (const { node, id } of findRefElements()) {
+    for (const { node, id } of refs) {
       const existing = node.querySelector(`[${BTN_ATTR}]`);
       if (existing) {
         if (existing.getAttribute(BTN_ATTR) === id) {
@@ -598,6 +642,7 @@
       });
       node.appendChild(button);
     }
+    return refs;
   }
 
   function removeButtons() {
@@ -612,20 +657,28 @@
   let lastLog = "";
   // A scan runs 0.9s after the first change and then not again until it has run. (It used to
   // restart the wait on every change; the order list keeps changing, so it never got to run.)
+  // Scans are also spaced out (at most one every 2.5 s) and skipped in a tab nobody is looking at, so a
+  // long order list stays smooth; coming back to the tab scans at once.
+  let lastScanAt = 0;
+  const MIN_GAP_MS = 2500;
   function schedule() {
     if (dead || timer) return;
+    const wait = Math.max(900, lastScanAt + MIN_GAP_MS - Date.now());
     timer = setTimeout(async () => {
       timer = null;
       try {
         if (!alive()) return die();
         if (!onOrderPage()) return removeButtons();
+        if (document.hidden) return; // scanned when the tab is shown again
+        lastScanAt = Date.now();
         if (Date.now() - lastStateAt > 4000) {
           lastStateAt = Date.now();
           await refreshState();
         }
-        addButtons();
-        requestTracking();
-        const summary = `refs=${lib.orderIdsFromText(document.body.innerText).length} buttons=${document.querySelectorAll(`[${BTN_ATTR}]`).length}`;
+        const refs = addButtons();
+        requestTracking(refs);
+        lastCount = document.getElementsByTagName("*").length;
+        const summary = `refs=${refs.length} buttons=${document.querySelectorAll(`[${BTN_ATTR}]`).length}`;
         if (summary !== lastLog) {
           lastLog = summary;
           console.info(`[AliExpress Sync] ${summary} on`, location.pathname);
@@ -633,8 +686,9 @@
       } catch (err) {
         console.error("[AliExpress Sync] scan failed:", err);
       }
-    }, 900);
+    }, wait);
   }
+  let lastCount = 0;
 
   // In the automatic check's own tab: wait for the list to appear, then scroll through it. If the tab ended up
   // somewhere else (a login page, say) it says it is done at once, so the check does not wait for nothing.
@@ -652,8 +706,19 @@
     // Any AliExpress page being opened lets the extension look at the parcels (see quickCheck in the background).
     send({ type: "PAGE_OPENED" });
     schedule();
-    observer = new MutationObserver(() => {
-      if (onOrderPage()) schedule();
+    // Our own buttons and toasts being added must not trigger another scan.
+    const ours = (n) => n.nodeType === 1 && (n.hasAttribute?.(BTN_ATTR) || Boolean(n.closest?.(`[${BTN_ATTR}]`)));
+    observer = new MutationObserver((records) => {
+      if (!onOrderPage()) return;
+      const outside = records.some((r) => {
+        if (r.target.closest?.(`[${BTN_ATTR}]`)) return false;
+        const nodes = [...r.addedNodes, ...r.removedNodes];
+        return nodes.length > 0 && !nodes.every(ours);
+      });
+      if (outside) schedule();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) schedule();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     let ticks = 0;
@@ -663,8 +728,8 @@
       if (location.href !== lastHref) {
         lastHref = location.href;
         schedule();
-      } else if (ticks % 4 === 0 && onOrderPage()) {
-        // Safety net: rescan every few seconds in case the page changed without us noticing.
+      } else if (ticks % 6 === 0 && onOrderPage() && !document.hidden && document.getElementsByTagName("*").length !== lastCount) {
+        // Safety net: rescan in case the page changed without us noticing (only if its size really changed).
         schedule();
       }
     }, 800);
