@@ -2,14 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-export const money = (value, currency) => {
-  const n = Number(value) || 0;
-  try {
-    return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency || "GBP" }).format(n);
-  } catch {
-    return n.toFixed(2);
-  }
-};
+import { formatMoney as money } from "@/lib/marketplaces";
+
+export { money };
 
 const linkButton = { background: "none", border: 0, cursor: "pointer", padding: 0 };
 const isMoney = (n) => Number.isFinite(n) && n >= 0 && Math.round(n * 100) / 100 === n;

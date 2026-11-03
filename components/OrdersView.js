@@ -1569,6 +1569,23 @@ export default function OrdersView({ status = "new" }) {
                                         : `${order.earnings.currency} ${order.earnings.earnings.toFixed(2)}`
                                       : "—"}
                                   </div>
+                                  {(() => {
+                                    // What eBay says went back to the buyer (full or partial) and whether the order was cancelled.
+                                    const refunded = Math.max(Number(order.refundTotal) || 0, Number(order.earnings?.refunded) || 0);
+                                    const cancelled = /^CANCEL/i.test(order.cancelState || "") && !/NONE/i.test(order.cancelState || "");
+                                    if (!refunded && !cancelled) return null;
+                                    const full = order.orderTotal != null && refunded >= order.orderTotal * 0.98;
+                                    const label = refunded ? `${full ? "Full refund" : "Partial refund"} ${refunded.toFixed(2)}` : "Cancelled";
+                                    return (
+                                      <div
+                                        className="money-item"
+                                        style={{ color: full || cancelled ? "var(--error, #c0392b)" : "var(--warning, #b7791f)", fontWeight: 600 }}
+                                        title={refunded ? "Money eBay has given back to the buyer for this order" : "This order was cancelled"}
+                                      >
+                                        {label}
+                                      </div>
+                                    );
+                                  })()}
                                 </>
                               )}
                             </td>

@@ -6,14 +6,7 @@ import { Check, CircleAlert, Copy, Landmark, LoaderCircle, Lock } from "lucide-r
 import { CostCell, ExpensesPanel, PaymentsPanel, PayoutsPanel } from "./FinanceExtras";
 import { Pager, paginate } from "./Pager";
 
-const money = (value, currency) => {
-  const n = Number(value) || 0;
-  try {
-    return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency || "GBP" }).format(n);
-  } catch {
-    return n.toFixed(2);
-  }
-};
+import { formatMoney as money } from "@/lib/marketplaces";
 
 // Small icon button that copies `text` and flashes a check mark.
 function CopyIcon({ text, label }) {
@@ -235,7 +228,17 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             <div className="stat-card">
               <div className="stat-label">eBay earnings</div>
               <div className="stat-value">{money(report.earnings, report.currency)}</div>
-              <div className="stat-hint">{report.orderCount} orders, after eBay fees</div>
+              <div className="stat-hint">
+                {report.orderCount} orders, after eBay fees{report.refunds > 0 && ` and ${money(report.refunds, report.currency)} refunds`}
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Refunds</div>
+              <div className="stat-value">{money((report.refunds || 0) + (report.refundsOtherMonths || 0), report.currency)}</div>
+              <div className="stat-hint">
+                {report.fullRefunds || 0} full, {report.partialRefunds || 0} partial
+                {report.refundsOtherMonthsCount > 0 && `, ${report.refundsOtherMonthsCount} of older months`}
+              </div>
             </div>
             <div className="stat-card">
               <div className="stat-label">AliExpress cost</div>
@@ -400,6 +403,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                     <th>Date</th>
                     <th>eBay order</th>
                     <th>Earned</th>
+                    <th>Refunded</th>
                     <th>AliExpress cost</th>
                     <th>Profit</th>
                   </tr>
@@ -417,6 +421,15 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                         </span>
                       </td>
                       <td>{money(o.net, report.currency)}</td>
+                      <td>
+                        {o.refundStatus ? (
+                          <span className={o.refundStatus === "full" ? "text-error" : undefined} title={o.refundStatus === "full" ? "The buyer got everything back" : "Part of the payment went back to the buyer"}>
+                            {money(o.refund, report.currency)} <span className="text-muted">({o.refundStatus})</span>
+                          </span>
+                        ) : (
+                          "–"
+                        )}
+                      </td>
                       <td>{closed ? (o.cost === null ? <span className="text-muted">no cost</span> : money(o.cost, report.currency)) : <CostCell order={o} currency={report.currency} onSave={(orderId, amount) => onMutate("manual-cost", "PUT", entry.storeId, { orderId, amount })} />}</td>
                       <td>{money(o.profit, report.currency)}</td>
                     </tr>
@@ -550,10 +563,17 @@ export default function FinanceView({ storeId }) {
   if (gate === "loading") return <div className="skeleton" style={{ height: 120, maxWidth: 360, margin: "40px auto" }} />;
   if (gate === "locked") return <PinGate hasPin={hasPin} onUnlocked={() => { setHasPin(true); setGate("open"); }} />;
 
-  const totals = (data?.stores || []).reduce(
-    (t, s) => (s.report ? { va: t.va + s.report.split.va, owner: t.owner + s.report.split.owner, profit: t.profit + s.report.profit, currency: s.report.currency } : t),
-    { va: 0, owner: 0, profit: 0, currency: "GBP" }
-  );
+  // Stores on different eBay sites earn in different currencies; they are never added into one number.
+  const totalsByCurrency = {};
+  for (const s of data?.stores || []) {
+    if (!s.report) continue;
+    const t = (totalsByCurrency[s.report.currency] ||= { va: 0, owner: 0, profit: 0, currency: s.report.currency });
+    t.va += s.report.split.va;
+    t.owner += s.report.split.owner;
+    t.profit += s.report.profit;
+  }
+  const totalsList = Object.values(totalsByCurrency);
+  const sumText = (key) => totalsList.map((t) => money(t[key], t.currency)).join(" + ") || money(0, "GBP");
 
   return (
     <div>
@@ -577,15 +597,15 @@ export default function FinanceView({ storeId }) {
         <div className="stat-grid">
           <div className="stat-card">
             <div className="stat-label"><Landmark strokeWidth={2} /> All stores: profit</div>
-            <div className="stat-value">{money(totals.profit, totals.currency)}</div>
+            <div className="stat-value">{sumText("profit")}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">VAs get in total</div>
-            <div className="stat-value">{money(totals.va, totals.currency)}</div>
+            <div className="stat-value">{sumText("va")}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Owners get in total</div>
-            <div className="stat-value">{money(totals.owner, totals.currency)}</div>
+            <div className="stat-value">{sumText("owner")}</div>
           </div>
         </div>
       )}

@@ -39,7 +39,7 @@ export async function GET(request) {
     const label = identity?.username || `store-${crypto.randomBytes(3).toString("hex")}`;
     const storeId = slugifyStoreId(`production-${label}`);
 
-    await saveEbayStore(userId, storeId, { tokens, label });
+    await saveEbayStore(userId, storeId, { tokens, label, marketplaceId: identity?.marketplaceId || null });
   } catch (err) {
     console.error("eBay OAuth callback error:", err);
     return NextResponse.redirect(`${baseUrl}/?ebay_error=token_exchange_failed`);

@@ -73,6 +73,7 @@ export async function GET(request) {
       limit: pageSize,
       offset: (page - 1) * pageSize,
       orderId,
+      marketplaceId: storeRecord.marketplaceId || null,
     });
     // eBay is the truth: an order that is still NOT_STARTED has no shipment on eBay, so a "tracking sent" record for it
     // is out of date (the shipment was removed on eBay). Forget it, so the order is a normal new order again.

@@ -4,6 +4,8 @@ import { isUnlocked } from "@/lib/pin";
 import { monthRange, summarizeMonth } from "@/lib/finance";
 import { fetchOrderEarnings, fetchTransactionsInRange, isTokenExpired, refreshAccessToken } from "@/lib/ebay";
 import { getEbayStore, updateStoreAccessToken } from "@/lib/store";
+import { timezoneOf } from "@/lib/marketplaces";
+import { ensureStoreMarketplace } from "@/lib/storeMarketplace";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -24,8 +26,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const storeId = searchParams.get("store") || "";
   const month = searchParams.get("month") || "";
-  const range = monthRange(month);
-  if (!STORE_ID_PATTERN.test(storeId) || !range) return NextResponse.json({ error: "A store and a month like 2026-10 are needed." }, { status: 400 });
+  if (!STORE_ID_PATTERN.test(storeId) || !monthRange(month)) return NextResponse.json({ error: "A store and a month like 2026-10 are needed." }, { status: 400 });
 
   let store = await getEbayStore(userId, storeId);
   if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 });
@@ -36,8 +37,10 @@ export async function GET(request) {
       store = await updateStoreAccessToken(userId, storeId, refreshed.accessToken, refreshed.expiresIn);
     }
     const token = store.tokens.accessToken;
+    const tz = timezoneOf((await ensureStoreMarketplace(userId, store)).store);
+    const range = monthRange(month, tz);
     const transactions = await fetchTransactionsInRange(token, range.from, range.to);
-    const report = summarizeMonth(transactions, {}, {}, 0, month);
+    const report = summarizeMonth(transactions, {}, {}, 0, month, { tz });
     const orders = report.orders.slice(0, MAX_ORDERS);
 
     const mismatches = [];

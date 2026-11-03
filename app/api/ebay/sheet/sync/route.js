@@ -17,6 +17,8 @@ import {
   saveStoreSheet,
 } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
+import { ensureStoreMarketplace } from "@/lib/storeMarketplace";
+import { DEFAULT_MARKETPLACE } from "@/lib/marketplaces";
 
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
 export const fetchCache = "force-no-store";
@@ -59,12 +61,16 @@ export async function POST(request) {
       await saveAppToken(appToken);
     }
 
-    let rootIds = await getCachedRootCategories();
+    // The listings, their links and the category list all come from the store's own eBay site (UK, US, ...).
+    const { marketplaceId: detected } = await ensureStoreMarketplace(userId, store);
+    const marketplaceId = detected || DEFAULT_MARKETPLACE;
+
+    let rootIds = await getCachedRootCategories(marketplaceId);
     if (!Array.isArray(rootIds) || rootIds.length === 0) {
-      rootIds = await saveRootCategories(await fetchRootCategoryIds(appToken.accessToken));
+      rootIds = await saveRootCategories(await fetchRootCategoryIds(appToken.accessToken, marketplaceId), marketplaceId);
     }
 
-    const listings = await fetchSellerListings(seller, appToken.accessToken, rootIds);
+    const listings = await fetchSellerListings(seller, appToken.accessToken, rootIds, marketplaceId);
 
     const sheet = await getStoreSheet(userId, storeId);
     const rows = sheet.rows.map((row) => ({ ...row, itemId: row.itemId || itemIdFromLink(row.ebayLink) }));
@@ -106,7 +112,7 @@ export async function POST(request) {
     for (let i = 0; i < toLookUp.length; i += 5) {
       await Promise.all(
         toLookUp.slice(i, i + 5).map(async (row) => {
-          const product = await fetchItemProduct(row.itemId, appToken.accessToken);
+          const product = await fetchItemProduct(row.itemId, appToken.accessToken, null, marketplaceId);
           if (!product) return;
           if (!row.title && product.title) row.title = product.title;
           if (!row.imageUrl && product.imageUrl && /^https:\/\/i\.ebayimg\.com\//.test(product.imageUrl)) row.imageUrl = product.imageUrl;
