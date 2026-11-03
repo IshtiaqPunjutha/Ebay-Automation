@@ -140,6 +140,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
   const [orderPage, setOrderPage] = useState(1);
   const [orderPageSize, setOrderPageSize] = useState(25);
   const [showDays, setShowDays] = useState(false); // day by day stays hidden until asked for
+  const [showRefunds, setShowRefunds] = useState(false);
   const [check, setCheck] = useState(null); // result of "Check against eBay"
   const [checking, setChecking] = useState(false);
 
@@ -268,6 +269,38 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
               <div className="stat-value">{money(report.split.owner, report.currency)}</div>
             </div>
           </div>
+
+          {report.refundRows?.length > 0 && (
+            <div style={{ fontSize: 12.5, marginBottom: 8 }}>
+              <span className="text-muted">
+                Refunds are what went back to buyers. eBay's own statement shows them net of fees it returned
+                {report.refundFeesReturned > 0 && ` (fees returned on these: ${money(report.refundFeesReturned, report.currency)}, so net ${money(report.refunds + report.refundsOtherMonths - report.refundFeesReturned, report.currency)})`}.{" "}
+              </span>
+              <button type="button" className="link-accent" onClick={() => setShowRefunds((v) => !v)} style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }}>
+                {showRefunds ? "Hide refund details" : "Show refund details"}
+              </button>
+              {showRefunds && (
+                <div className="review-scroll" style={{ marginTop: 6 }}>
+                  <table className="review-table">
+                    <thead>
+                      <tr><th>Date</th><th>eBay order</th><th>Type</th><th>Refunded</th><th>Fees returned</th></tr>
+                    </thead>
+                    <tbody>
+                      {report.refundRows.map((r, i) => (
+                        <tr key={`${r.orderId}-${i}`}>
+                          <td className="mono">{r.date}</td>
+                          <td className="mono">{r.orderId}</td>
+                          <td>{r.type}</td>
+                          <td>{money(r.amount, report.currency)}</td>
+                          <td>{r.feesReturned ? money(r.feesReturned, report.currency) : "–"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {report.otherKinds?.length > 0 && (
             <p className="text-muted" style={{ fontSize: 12.5 }}>
