@@ -626,6 +626,22 @@ export default function OrdersView({ status = "new" }) {
   const [orderRefs, setOrderRefs] = useState({});
   const loadOrdersRef = useRef(null);
   const [savingRef, setSavingRef] = useState(false);
+  // Test: write a private eBay note ("Add note" in Seller Hub) for one order.
+  async function testNote(orderId) {
+    const text = window.prompt("Text for this order's eBay note (leave empty to remove the note):", "TEST 8123456789");
+    if (text === null) return;
+    try {
+      const res = await fetch(`/api/ebay/ordernote?store=${encodeURIComponent(storeId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, text }),
+      });
+      const body = await res.json().catch(() => ({}));
+      window.alert(res.ok ? "Saved. Open this order in Seller Hub and look at its note." : body.error || "Could not save the note.");
+    } catch {
+      window.alert("Could not reach the server.");
+    }
+  }
 
   async function loadOrderRefs() {
     try {
@@ -1430,6 +1446,11 @@ export default function OrdersView({ status = "new" }) {
                                     <Truck strokeWidth={2.5} />
                                     Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}
                                   </span>
+                                )}
+                                {idx === 0 && (
+                                  <button type="button" className="link-button" onClick={() => testNote(order.orderId)} title="Test: write an eBay note for this order">
+                                    Test note
+                                  </button>
                                 )}
                                 {status === "dispatched" && idx === 0 && (
                                   <button
