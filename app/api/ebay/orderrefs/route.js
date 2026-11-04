@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { MAX_REFS_PER_ORDER, getEbayStore, getOrderRefs, setOrderRefs } from "@/lib/store";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
+import { syncOrderNote } from "@/lib/orderNote";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -18,7 +19,7 @@ async function authorize(request, storeId) {
   }
   const store = await getEbayStore(userId, storeId);
   if (!store) return { error: NextResponse.json({ error: "Store not found" }, { status: 404 }) };
-  return { userId };
+  return { userId, store };
 }
 
 // GET /api/ebay/orderrefs?store=<storeId>  ->  { refs: { [ebayOrderId]: { aliOrderIds, updatedAt } } }
@@ -79,7 +80,9 @@ export async function PUT(request) {
 
   try {
     const entry = await setOrderRefs(auth.userId, storeId, orderId, ids, lines);
-    return NextResponse.json({ ok: true, entry });
+    // The same numbers go into the order's private note on eBay.
+    const note = entry ? await syncOrderNote(auth.userId, auth.store, orderId, entry.aliOrderIds) : { skipped: true };
+    return NextResponse.json({ ok: true, entry, noteSaved: Boolean(note.ok) });
   } catch (err) {
     console.error(`Error saving order refs for store ${storeId}:`, err);
     return NextResponse.json({ error: "Failed to save order number" }, { status: 500 });

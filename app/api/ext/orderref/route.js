@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { MAX_REFS_PER_ORDER, getEbayStore, getOrderRefs, setOrderRefs } from "@/lib/store";
 import { authFromBearer, canUseStore } from "@/lib/exttoken";
+import { syncOrderNote } from "@/lib/orderNote";
 
 export const dynamic = "force-dynamic";
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -53,7 +54,9 @@ export async function POST(request) {
     }
     const lines = { ...(refs[orderId]?.lines || {}), ...(lineItemId ? { [aliOrderId]: lineItemId } : {}) };
     const entry = await setOrderRefs(userId, storeId, orderId, [...existing, aliOrderId], lines);
-    return NextResponse.json({ ok: true, alreadySaved: false, aliOrderIds: entry.aliOrderIds });
+    // The same numbers go into the order's private note on eBay.
+    const note = await syncOrderNote(userId, store, orderId, entry.aliOrderIds);
+    return NextResponse.json({ ok: true, alreadySaved: false, aliOrderIds: entry.aliOrderIds, noteSaved: Boolean(note.ok) });
   } catch (err) {
     console.error("Extension order ref save failed:", err);
     return NextResponse.json({ error: "Failed to save order number" }, { status: 500 });
