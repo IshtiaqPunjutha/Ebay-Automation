@@ -506,6 +506,13 @@ const COPY = {
     empty: "No new orders right now",
     emptyHint: "New orders will appear here when you refresh.",
   },
+  cancellations: {
+    title: "Cancellation requests",
+    subtitle: "Orders where the buyer asked to cancel and you have not answered yet (last 60 days). Answer on eBay.",
+    countLabel: "Requests",
+    empty: "No cancellation requests",
+    emptyHint: "Orders with an open cancellation request will appear here when you refresh.",
+  },
   dispatched: {
     title: "Dispatched orders",
     subtitle: "Orders you have already shipped (eBay keeps the last 90 days).",
@@ -516,8 +523,11 @@ const COPY = {
 };
 
 // status: "new" (not shipped yet) or "dispatched" (fulfilled).
-export default function OrdersView({ status = "new" }) {
-  const copy = COPY[status] || COPY.new;
+export default function OrdersView({ status: statusProp = "new" }) {
+  // "cancellations" is the new-orders layout, filtered by eBay to orders with an open cancellation request.
+  const cancellations = statusProp === "cancellations";
+  const status = cancellations ? "new" : statusProp;
+  const copy = COPY[statusProp] || COPY.new;
   const { storeId } = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -626,20 +636,24 @@ export default function OrdersView({ status = "new" }) {
   const [orderRefs, setOrderRefs] = useState({});
   const loadOrdersRef = useRef(null);
   const [savingRef, setSavingRef] = useState(false);
-  // Undo for the eBay note: removes the order's private note on eBay (the AliExpress numbers here stay).
-  async function clearEbayNote(orderId) {
-    if (!window.confirm("Remove this order's note on eBay? The AliExpress number saved here stays.")) return;
+  // One small button per order: "Sync note" writes the saved AliExpress numbers into the order's note on eBay,
+  // and once they are there it turns into "Undo note", which removes the note again (the numbers here stay).
+  const [noteBusy, setNoteBusy] = useState({});
+  async function toggleEbayNote(orderId, synced) {
+    setNoteBusy((prev) => ({ ...prev, [orderId]: true }));
     try {
       const res = await fetch(`/api/ebay/ordernote?store=${encodeURIComponent(storeId)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, text: "" }),
+        body: JSON.stringify({ orderId, action: synced ? "clear" : "sync" }),
       });
       const body = await res.json().catch(() => ({}));
-      window.alert(res.ok ? "The note was removed from this order on eBay." : body.error || "Could not remove the note.");
+      if (!res.ok) window.alert(body.error || "Could not change the note.");
+      else await loadOrderRefs();
     } catch {
       window.alert("Could not reach the server.");
     }
+    setNoteBusy((prev) => ({ ...prev, [orderId]: false }));
   }
 
   async function loadOrderRefs() {
@@ -765,7 +779,7 @@ export default function OrdersView({ status = "new" }) {
     try {
       const params = new URLSearchParams({
         store: storeId,
-        status,
+        status: cancellations ? "cancellations" : status,
         page: String(page),
         pageSize: String(pageSize),
       });
@@ -774,7 +788,7 @@ export default function OrdersView({ status = "new" }) {
       const data = await res.json();
       // The finance page does not know whether an order has shipped; move to the tab it is on.
       const found = focusOrder && data.orders?.[0];
-      if (found && (found.fulfillmentStatus === "FULFILLED") !== (status === "dispatched")) {
+      if (!cancellations && found && (found.fulfillmentStatus === "FULFILLED") !== (status === "dispatched")) {
         const other = status === "dispatched" ? `/stores/${storeId}` : `/stores/${storeId}/dispatched`;
         router.replace(`${other}?order=${encodeURIComponent(focusOrder)}`);
         return;
@@ -1058,7 +1072,7 @@ export default function OrdersView({ status = "new" }) {
               </div>
             </div>
           )}
-          {status === "new" && (
+          {status === "new" && !cancellations && (
             <button
               type="button"
               className="btn btn-secondary"
@@ -1163,7 +1177,7 @@ export default function OrdersView({ status = "new" }) {
                 aria-label="Search orders on this page"
               />
             </div>
-            {status === "new" && readyOrders.length > 0 && (
+            {status === "new" && !cancellations && readyOrders.length > 0 && (
               <>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={toggleAllReady} title="Tick or untick every order on this page whose tracking is ready">
                   <Check strokeWidth={2.5} />
@@ -1436,6 +1450,22 @@ export default function OrdersView({ status = "new" }) {
                                 ) : (
                                   <StatusBadge status={order.fulfillmentStatus} />
                                 )}
+                                {(() => {
+                                  const open = (order.cancelRequests || []).find((r) => r.state === "REQUESTED");
+                                  if (!open && order.cancelState !== "CANCEL_REQUESTED") return null;
+                                  const reasons = {
+                                    BUYER_ASKED_CANCEL: "Buyer asked to cancel",
+                                    ADDRESS_ISSUES: "Address problem",
+                                    ORDER_UNPAID: "Unpaid",
+                                    OUT_OF_STOCK_OR_CANNOT_FULFILL: "Out of stock",
+                                  };
+                                  const when = open?.requestedDate ? new Date(open.requestedDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+                                  return (
+                                    <span className="badge" style={{ color: "var(--error, #c0392b)", borderColor: "var(--error, #c0392b)" }} title="The buyer asked to cancel this order. Answer on eBay.">
+                                      Cancel requested{when ? ` ${when}` : ""}{open?.reason && reasons[open.reason] ? ` · ${reasons[open.reason]}` : ""}
+                                    </span>
+                                  );
+                                })()}
                                 {status === "new" && !sentTracking[order.orderId] && <DispatchBy shipBy={order.shipBy} />}
                                 {status === "new" && sentTracking[order.orderId] && (
                                   <span
@@ -1446,11 +1476,20 @@ export default function OrdersView({ status = "new" }) {
                                     Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}
                                   </span>
                                 )}
-                                {idx === 0 && allIds.length > 0 && (
-                                  <button type="button" className="link-button" onClick={() => clearEbayNote(order.orderId)} title="Remove the AliExpress note this dashboard wrote on the order in eBay">
-                                    Undo eBay note
-                                  </button>
-                                )}
+                                {idx === 0 && allIds.length > 0 && (() => {
+                                  const synced = Boolean(refEntry.noteText) && refEntry.noteText === allIds.join(", ");
+                                  return (
+                                    <button
+                                      type="button"
+                                      className="link-button"
+                                      disabled={Boolean(noteBusy[order.orderId])}
+                                      onClick={() => toggleEbayNote(order.orderId, synced)}
+                                      title={synced ? "Remove this order's note on eBay (the number saved here stays)" : "Write the AliExpress number into this order's note on eBay"}
+                                    >
+                                      {noteBusy[order.orderId] ? "…" : synced ? "Undo note" : "Sync note"}
+                                    </button>
+                                  );
+                                })()}
                                 {status === "dispatched" && idx === 0 && (
                                   <button
                                     type="button"
@@ -1592,7 +1631,7 @@ export default function OrdersView({ status = "new" }) {
                                   {(() => {
                                     // What eBay says went back to the buyer (full or partial) and whether the order was cancelled.
                                     const refunded = Math.max(Number(order.refundTotal) || 0, Number(order.earnings?.refunded) || 0);
-                                    const cancelled = /^CANCEL/i.test(order.cancelState || "") && !/NONE/i.test(order.cancelState || "");
+                                    const cancelled = order.cancelState === "CANCELED";
                                     if (!refunded && !cancelled) return null;
                                     const full = order.orderTotal != null && refunded >= order.orderTotal * 0.98;
                                     const label = refunded ? `${full ? "Full refund" : "Partial refund"} ${refunded.toFixed(2)}` : "Cancelled";
