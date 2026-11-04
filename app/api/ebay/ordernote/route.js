@@ -41,7 +41,7 @@ export async function POST(request) {
     const order = await fetchOrderForShipping(token, orderId);
     const results = [];
     for (const li of order.lineItems) {
-      results.push(await setOrderLineNote(token, { orderLineItemId: li.lineItemId, text, marketplaceId: store.marketplaceId }));
+      results.push(await setOrderLineNote(token, { itemId: li.legacyItemId, transactionId: li.lineItemId, text, marketplaceId: store.marketplaceId }));
     }
     const failed = results.filter((r) => !r.ok);
     if (failed.length) {
