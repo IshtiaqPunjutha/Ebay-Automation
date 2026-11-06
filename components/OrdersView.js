@@ -1,5 +1,6 @@
 "use client";
 
+import { addressLines, formatPhone } from "@/lib/shipFormat";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -1341,17 +1342,13 @@ export default function OrdersView({ status: statusProp = "new" }) {
                       const variantText = Object.entries(li.variants || {})
                         .map(([k, v]) => `${k}: ${v}`)
                         .join(", ");
-                      const addressParts = [
-                        order.shipTo.addressLine1,
-                        order.shipTo.addressLine2,
-                        order.shipTo.city,
-                        order.shipTo.stateOrProvince,
-                        order.shipTo.postalCode,
-                        order.shipTo.countryCode,
-                      ].filter(Boolean);
-                      const address = addressParts.join(", ");
+                      // Same layout as eBay's own copy (one item per line, country spelled out, phone as +44...), which is
+                      // what the AliExpress autofill extension reads.
+                      const addressParts = addressLines(order.shipTo);
+                      const address = addressParts.join("
+");
                       const recipient = order.shipTo.fullName || order.buyerUsername;
-                      const phone = order.shipTo.phone;
+                      const phone = formatPhone(order.shipTo.phone, order.shipTo.countryCode);
                       // Everything a courier label needs, one item per line.
                       const fullBlock = [recipient, ...addressParts, phone].filter(Boolean).join("\n");
                       // An order with several items has one AliExpress order per item: this row shows (and edits) only its own.
@@ -1662,7 +1659,7 @@ export default function OrdersView({ status: statusProp = "new" }) {
                                     <div className="item-meta">No phone number</div>
                                   )}
                                   <CopyButton text={fullBlock} label="Copy full address (name, address, phone)">
-                                    <span className="item-meta" style={{ margin: 0 }}>{address}</span>
+                                    <span className="item-meta" style={{ margin: 0, whiteSpace: "pre-line" }}>{address}</span>
                                   </CopyButton>
                                 </>
                               )}
