@@ -1345,8 +1345,7 @@ export default function OrdersView({ status: statusProp = "new" }) {
                       // Same layout as eBay's own copy (one item per line, country spelled out, phone as +44...), which is
                       // what the AliExpress autofill extension reads.
                       const addressParts = addressLines(order.shipTo);
-                      const address = addressParts.join("
-");
+                      const address = addressParts.join("\n");
                       const recipient = order.shipTo.fullName || order.buyerUsername;
                       const phone = formatPhone(order.shipTo.phone, order.shipTo.countryCode);
                       // Everything a courier label needs, one item per line.
