@@ -57,6 +57,14 @@ function ManualCell({ row, onSave }) {
       />
       <input
         className="input"
+        type="date"
+        value={row.date || ""}
+        onChange={(e) => e.target.value && onSave(row.orderId, { date: e.target.value })}
+        title="The day this return counts for (its month)"
+        aria-label="Date of the return"
+      />
+      <input
+        className="input"
         placeholder="Note"
         value={note}
         onChange={(e) => setNote(e.target.value)}
@@ -131,6 +139,11 @@ export default function ReturnsView() {
   const [newVia, setNewVia] = useState("chat");
   const [newExtra, setNewExtra] = useState("");
   const [newNote, setNewNote] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
+  const [newDate, setNewDate] = useState(today);
+  // The month shown (returns count in the month of their date); "All time" shows everything.
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [allTime, setAllTime] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -171,7 +184,7 @@ export default function ReturnsView() {
     const orderId = newOrder.trim();
     if (!orderId) return;
     setBusy(true);
-    if (await put({ orderId, source: "manual", via: newVia, extraRefund: Number(newExtra) || 0, note: newNote.trim() })) {
+    if (await put({ orderId, source: "manual", via: newVia, extraRefund: Number(newExtra) || 0, note: newNote.trim(), date: newDate })) {
       setNewOrder("");
       setNewExtra("");
       setNewNote("");
@@ -179,14 +192,15 @@ export default function ReturnsView() {
     setBusy(false);
   }
 
+  const shown = allTime ? rows : rows.filter((r) => (r.date || "").slice(0, 7) === month);
   // Money in the currency most orders use; returns in two currencies are not added together.
-  const currency = rows.find((r) => r.order?.currency)?.order.currency || "GBP";
-  const settled = rows.filter((r) => r.ali.status !== "waiting");
-  const refunded = rows.reduce((sum, r) => sum + refundedOf(r), 0);
-  const back = rows.reduce((sum, r) => sum + (r.ali.status === "received" ? Number(r.ali.amount) || 0 : 0), 0);
-  const results = rows.map(resultOf).filter((v) => typeof v === "number");
+  const currency = shown.find((r) => r.order?.currency)?.order.currency || "GBP";
+  const settled = shown.filter((r) => r.ali.status !== "waiting");
+  const refunded = shown.reduce((sum, r) => sum + refundedOf(r), 0);
+  const back = shown.reduce((sum, r) => sum + (r.ali.status === "received" ? Number(r.ali.amount) || 0 : 0), 0);
+  const results = shown.map(resultOf).filter((v) => typeof v === "number");
   const net = results.reduce((sum, v) => sum + v, 0);
-  const waiting = rows.length - settled.length;
+  const waiting = shown.length - settled.length;
 
   return (
     <div>
@@ -198,7 +212,7 @@ export default function ReturnsView() {
           </p>
         </div>
         <div className="header-tools">
-          {rows.length > 0 && (
+          {shown.length > 0 && (
             <div className="stat-chips">
               <div className="stat-chip"><span className="stat-chip-label">Returns</span><span className="stat-chip-value">{rows.length}</span></div>
               <div className="stat-chip" title="Given back to buyers on eBay"><span className="stat-chip-label">Refunded to buyers</span><span className="stat-chip-value">{formatMoney(refunded, currency)}</span></div>
@@ -209,6 +223,10 @@ export default function ReturnsView() {
               </div>
             </div>
           )}
+          <input className="input" type="month" value={month} disabled={allTime} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label="Month" />
+          <label className="text-muted" style={{ display: "inline-flex", gap: 4, alignItems: "center", fontSize: 12.5 }}>
+            <input type="checkbox" checked={allTime} onChange={(e) => setAllTime(e.target.checked)} /> All time
+          </label>
           <button type="button" className="btn btn-secondary" onClick={load} disabled={loading}>
             <RefreshCw strokeWidth={2} /> Refresh
           </button>
@@ -238,6 +256,7 @@ export default function ReturnsView() {
           style={{ width: 210 }}
           aria-label="Refunded outside eBay"
         />
+        <input className="input" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} aria-label="Date of the return" title="The day this return counts for (its month)" />
         <input className="input" placeholder="Note (optional)" value={newNote} onChange={(e) => setNewNote(e.target.value)} style={{ width: 200 }} aria-label="Note" />
         <button type="submit" className="btn btn-secondary" disabled={busy || !newOrder.trim()}>
           Add return
@@ -252,11 +271,13 @@ export default function ReturnsView() {
       )}
       {loading && <LoaderCircle className="spin" size={16} />}
 
-      {!loading && rows.length === 0 && !error && (
-        <p className="text-muted">No returns yet. Returns eBay lists appear here by themselves; any other order can be marked above.</p>
+      {!loading && shown.length === 0 && !error && (
+        <p className="text-muted">
+          {rows.length > 0 ? "No returns in this month." : "No returns yet."} Returns eBay lists appear here by themselves; any other order can be added above.
+        </p>
       )}
 
-      {rows.length > 0 && (
+      {shown.length > 0 && (
         <div className="review-scroll">
           <table className="review-table">
             <thead>
@@ -272,7 +293,7 @@ export default function ReturnsView() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {shown.map((row) => {
                 const out = refundedOf(row);
                 const cur = row.order?.currency || currency;
                 const result = resultOf(row);

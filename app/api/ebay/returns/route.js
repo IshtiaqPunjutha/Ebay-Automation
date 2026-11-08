@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { RETURN_ALI_STATUSES, getAliCosts, getEbayStore, getOrderRefs, getReturns, removeReturnEntry, setReturnEntry, updateStoreAccessToken } from "@/lib/store";
 import { fetchOrderEarnings, isTokenExpired, refreshAccessToken } from "@/lib/ebay";
-import { fetchEbayReturns, fetchOrderBrief, fetchOrderIdMap } from "@/lib/returns";
-import { marketplaceOf } from "@/lib/marketplaces";
+import { fetchEbayReturns, fetchOrderBrief, fetchOrderIdMap, returnDate } from "@/lib/returns";
+import { marketplaceOf, timezoneOf } from "@/lib/marketplaces";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +70,8 @@ export async function GET(request) {
           via: entry?.via || (byOrder[orderId] ? "ebay" : "chat"),
           extraRefund: entry?.extraRefund || 0,
           note: entry?.note || "",
+          date: returnDate(entry, byOrder[orderId]?.created, timezoneOf(store)),
+          dateSet: Boolean(entry?.date),
           createdAt: entry?.createdAt || null,
           aliOrderIds,
           aliCost: knownCosts.length ? Math.round(knownCosts.reduce((sum, c) => sum + Number(c.amount || 0), 0) * 100) / 100 : null,
@@ -78,7 +80,7 @@ export async function GET(request) {
         };
       })
     );
-    rows.sort((a, b) => String(b.ebay?.created || b.order?.date || "").localeCompare(String(a.ebay?.created || a.order?.date || "")));
+    rows.sort((a, b) => String(b.date || b.order?.date || "").localeCompare(String(a.date || a.order?.date || "")));
     return NextResponse.json({ rows, ebayError });
   } catch (err) {
     console.error(`Returns failed for store ${storeId}:`, err);
@@ -127,7 +129,12 @@ export async function PUT(request) {
       extraRefund = Math.round(extraRefund * 100) / 100;
     }
     const note = typeof body.note === "string" ? body.note.slice(0, 200) : undefined;
-    const entry = await setReturnEntry(auth.userId, auth.storeId, orderId, { source: body.source === "ebay" ? "ebay" : "manual", ali, via, extraRefund, note });
+    let date;
+    if (body.date !== undefined) {
+      if (body.date !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date))) return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+      date = body.date;
+    }
+    const entry = await setReturnEntry(auth.userId, auth.storeId, orderId, { source: body.source === "ebay" ? "ebay" : "manual", ali, via, extraRefund, note, date });
     return NextResponse.json({ ok: true, entry });
   } catch (err) {
     console.error(`Saving a return failed for ${orderId}:`, err);

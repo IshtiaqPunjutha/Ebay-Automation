@@ -245,6 +245,16 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
               <div className="stat-label">AliExpress cost</div>
               <div className="stat-value">{money(report.cost, report.currency)}</div>
             </div>
+            {report.returnsCount > 0 && (
+              <div className="stat-card">
+                <div className="stat-label">Returns settled</div>
+                <div className="stat-value">{money((report.returnsRecovered || 0) - (report.returnsOutside || 0), report.currency)}</div>
+                <div className="stat-hint">
+                  AliExpress paid back {money(report.returnsRecovered, report.currency)}
+                  {report.returnsOutside > 0 && `, paid buyers ${money(report.returnsOutside, report.currency)} outside eBay`}
+                </div>
+              </div>
+            )}
             <div className="stat-card">
               <div className="stat-label">Other charges</div>
               <div className="stat-value">{money(report.otherCharges, report.currency)}</div>
@@ -268,6 +278,33 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
               <div className="stat-label">Owner share ({partnership.ownerPercent}%)</div>
               <div className="stat-value">{money(report.split.owner, report.currency)}</div>
             </div>
+          </div>
+
+          <div className="review-scroll" style={{ marginBottom: 10 }}>
+            <table className="review-table" aria-label="Month statement">
+              <tbody>
+                {[
+                  ["Sales after eBay fees (before refunds)", report.salesBeforeRefunds, false],
+                  ["Refunds to buyers", -(report.refunds || 0), false],
+                  ["eBay earnings", report.earnings, true],
+                  ["AliExpress cost", -report.cost, false],
+                  ["AliExpress refunds received on returns", report.returnsRecovered || 0, false],
+                  ["Refunded to buyers outside eBay", -(report.returnsOutside || 0), false],
+                  ["Other eBay charges (ads, listing fees, old-month refunds)", report.otherCharges, false],
+                  ["Extra expenses", -report.expensesTotal, false],
+                  ["Profit", report.profit, true],
+                  [`VA share (${partnership.vaPercent}%)`, report.split.va, false],
+                  [`Owner / investor share (${partnership.ownerPercent}%)`, report.split.owner, false],
+                  ["Paid to VA so far", report.vaPaid, false],
+                  ["Still to pay the VA", report.vaBalance, true],
+                ].map(([label, value, strong]) => (
+                  <tr key={label} style={strong ? { fontWeight: 700 } : undefined}>
+                    <td>{label}</td>
+                    <td style={{ textAlign: "right" }}>{money(value, report.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {report.refundRows?.length > 0 && (
@@ -370,6 +407,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                     <th>AliExpress cost</th>
                     <th>Other charges</th>
                     <th>Expenses</th>
+                    <th>Returns</th>
                     <th>Profit</th>
                     <th>Running profit</th>
                   </tr>
@@ -379,7 +417,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                     let running = 0;
                     return report.days.map((d) => {
                       running = Math.round((running + d.profit) * 100) / 100;
-                      const empty = d.orders === 0 && d.otherCharges === 0 && !d.expenses;
+                      const empty = d.orders === 0 && d.otherCharges === 0 && !d.expenses && !d.returns;
                       return (
                         <tr key={d.date} style={empty ? { opacity: 0.5 } : undefined}>
                           <td className="mono">{d.date.slice(8, 10)} {new Date(d.date + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}</td>
@@ -388,6 +426,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                           <td>{empty ? "–" : money(d.cost, report.currency)}</td>
                           <td>{d.otherCharges ? money(d.otherCharges, report.currency) : "–"}</td>
                           <td>{d.expenses ? money(d.expenses, report.currency) : "–"}</td>
+                          <td>{d.returns ? money(d.returns, report.currency) : "–"}</td>
                           <td>{empty ? "–" : money(d.profit, report.currency)}</td>
                           <td>{money(running, report.currency)}</td>
                         </tr>
@@ -401,6 +440,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                     <td>{money(report.cost, report.currency)}</td>
                     <td>{money(report.otherCharges, report.currency)}</td>
                     <td>{money(report.expensesTotal, report.currency)}</td>
+                    <td>{money((report.returnsRecovered || 0) - (report.returnsOutside || 0), report.currency)}</td>
                     <td>{money(report.profit, report.currency)}</td>
                     <td></td>
                   </tr>
