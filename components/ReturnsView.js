@@ -329,6 +329,14 @@ export default function ReturnsView() {
                           {formatMoney(result, cur)}
                         </strong>
                       )}
+                      {typeof result === "number" && (
+                        <div className="item-meta" style={{ lineHeight: 1.5 }}>
+                          <div title="What eBay left for this order after the sale, its fees and the refund: fees eBay did not give back show up here">eBay {formatMoney(row.ebayNet, cur)}</div>
+                          <div>AliExpress cost -{formatMoney(row.aliCost, cur).replace("-", "")}</div>
+                          <div>AliExpress back +{formatMoney(row.ali.status === "received" ? row.ali.amount : 0, cur).replace("-", "")}</div>
+                          {row.extraRefund > 0 && <div>Outside eBay -{formatMoney(row.extraRefund, cur).replace("-", "")}</div>}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <button
