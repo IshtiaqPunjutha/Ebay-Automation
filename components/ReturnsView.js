@@ -24,11 +24,48 @@ const REASON = {
 const resultOf = (row) => {
   if (row.ali.status === "waiting") return null;
   if (row.aliCost == null || row.ebayNet == null) return undefined;
-  return Math.round((row.ebayNet - row.aliCost + (row.ali.status === "received" ? Number(row.ali.amount) || 0 : 0)) * 100) / 100;
+  return Math.round((row.ebayNet - row.aliCost + (row.ali.status === "received" ? Number(row.ali.amount) || 0 : 0) - (Number(row.extraRefund) || 0)) * 100) / 100;
 };
 
 // What the buyer got back, in the order's currency: eBay's own refund figure for the order, else the return's.
-const refundedOf = (row) => Math.max(Number(row.order?.refunded) || 0, Number(row.ebay?.refund) || 0);
+const refundedOf = (row) => Math.max(Number(row.order?.refunded) || 0, Number(row.ebay?.refund) || 0) + (Number(row.extraRefund) || 0);
+
+const VIA_LABEL = { ebay: "eBay return", chat: "Chat (manual)", other: "Other (manual)" };
+
+// Note and "refunded outside eBay" of one return, saved when the field is left.
+function ManualCell({ row, onSave }) {
+  const [extra, setExtra] = useState(String(row.extraRefund || ""));
+  const [note, setNote] = useState(row.note || "");
+  useEffect(() => setExtra(String(row.extraRefund || "")), [row.extraRefund]);
+  useEffect(() => setNote(row.note || ""), [row.note]);
+  return (
+    <div style={{ display: "grid", gap: 4, minWidth: 170 }}>
+      <select className="input" value={row.via} onChange={(e) => onSave(row.orderId, { via: e.target.value })} aria-label="How the buyer was settled" style={{ width: "auto" }}>
+        {Object.entries(VIA_LABEL).map(([value, label]) => (
+          <option key={value} value={value}>{label}</option>
+        ))}
+      </select>
+      <input
+        className="input"
+        inputMode="decimal"
+        placeholder="Refunded outside eBay"
+        value={extra}
+        onChange={(e) => setExtra(e.target.value)}
+        onBlur={() => Number(extra || 0) !== Number(row.extraRefund || 0) && onSave(row.orderId, { extraRefund: Number(extra) || 0 })}
+        title="Money you gave the buyer outside eBay's own refund (for example by agreement in chat). It is counted as a cost."
+        aria-label="Refunded outside eBay"
+      />
+      <input
+        className="input"
+        placeholder="Note"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onBlur={() => note !== (row.note || "") && onSave(row.orderId, { note })}
+        aria-label="Note"
+      />
+    </div>
+  );
+}
 
 // A number with a small button that copies it.
 function CopyNumber({ text }) {
@@ -91,6 +128,9 @@ export default function ReturnsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [newOrder, setNewOrder] = useState("");
+  const [newVia, setNewVia] = useState("chat");
+  const [newExtra, setNewExtra] = useState("");
+  const [newNote, setNewNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -131,7 +171,11 @@ export default function ReturnsView() {
     const orderId = newOrder.trim();
     if (!orderId) return;
     setBusy(true);
-    if (await put({ orderId, source: "manual" })) setNewOrder("");
+    if (await put({ orderId, source: "manual", via: newVia, extraRefund: Number(newExtra) || 0, note: newNote.trim() })) {
+      setNewOrder("");
+      setNewExtra("");
+      setNewNote("");
+    }
     setBusy(false);
   }
 
@@ -180,8 +224,23 @@ export default function ReturnsView() {
           style={{ width: 300, maxWidth: "100%" }}
           aria-label="eBay order number"
         />
+        <select className="input" value={newVia} onChange={(e) => setNewVia(e.target.value)} aria-label="How the buyer was settled" style={{ width: "auto" }}>
+          <option value="chat">Settled in chat (no eBay return)</option>
+          <option value="ebay">eBay return</option>
+          <option value="other">Other</option>
+        </select>
+        <input
+          className="input"
+          inputMode="decimal"
+          placeholder="Refunded outside eBay (optional)"
+          value={newExtra}
+          onChange={(e) => setNewExtra(e.target.value)}
+          style={{ width: 210 }}
+          aria-label="Refunded outside eBay"
+        />
+        <input className="input" placeholder="Note (optional)" value={newNote} onChange={(e) => setNewNote(e.target.value)} style={{ width: 200 }} aria-label="Note" />
         <button type="submit" className="btn btn-secondary" disabled={busy || !newOrder.trim()}>
-          Mark as return
+          Add return
         </button>
       </form>
 
@@ -205,6 +264,7 @@ export default function ReturnsView() {
                 <th>Order</th>
                 <th>Item</th>
                 <th>eBay return</th>
+                <th>How / note</th>
                 <th>Refunded to buyer</th>
                 <th>AliExpress refund</th>
                 <th title="eBay's side after fees and the refund, minus the AliExpress cost, plus what AliExpress paid back">Result</th>
@@ -246,8 +306,11 @@ export default function ReturnsView() {
                           <div className="item-meta">{REASON[row.ebay.reason] || row.ebay.reason.replace(/_/g, " ").toLowerCase()}</div>
                         </>
                       ) : (
-                        <span className="text-muted">Marked by hand</span>
+                        <span className="text-muted">No eBay return</span>
                       )}
+                    </td>
+                    <td>
+                      <ManualCell row={row} onSave={(orderId, patch) => put({ orderId, ...patch })} />
                     </td>
                     <td>{out > 0 ? formatMoney(out, cur) : <span className="text-muted">not refunded yet</span>}</td>
                     <td>

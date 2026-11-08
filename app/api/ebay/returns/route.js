@@ -67,6 +67,9 @@ export async function GET(request) {
           ebay: byOrder[orderId] || null,
           manual: entry ? entry.source === "manual" : false,
           ali: entry?.ali || { status: "waiting", amount: 0, note: "" },
+          via: entry?.via || (byOrder[orderId] ? "ebay" : "chat"),
+          extraRefund: entry?.extraRefund || 0,
+          note: entry?.note || "",
           createdAt: entry?.createdAt || null,
           aliOrderIds,
           aliCost: knownCosts.length ? Math.round(knownCosts.reduce((sum, c) => sum + Number(c.amount || 0), 0) * 100) / 100 : null,
@@ -112,7 +115,19 @@ export async function PUT(request) {
       if (!Number.isFinite(amount) || amount < 0 || amount > 100000) return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
       ali = { status, amount: status === "received" ? Math.round(amount * 100) / 100 : 0, note };
     }
-    const entry = await setReturnEntry(auth.userId, auth.storeId, orderId, { source: body.source === "ebay" ? "ebay" : "manual", ali });
+    let via;
+    if (body.via !== undefined) {
+      if (!["ebay", "chat", "other"].includes(body.via)) return NextResponse.json({ error: "Invalid way of return" }, { status: 400 });
+      via = body.via;
+    }
+    let extraRefund;
+    if (body.extraRefund !== undefined) {
+      extraRefund = Number(body.extraRefund);
+      if (!Number.isFinite(extraRefund) || extraRefund < 0 || extraRefund > 100000) return NextResponse.json({ error: "Invalid refund amount" }, { status: 400 });
+      extraRefund = Math.round(extraRefund * 100) / 100;
+    }
+    const note = typeof body.note === "string" ? body.note.slice(0, 200) : undefined;
+    const entry = await setReturnEntry(auth.userId, auth.storeId, orderId, { source: body.source === "ebay" ? "ebay" : "manual", ali, via, extraRefund, note });
     return NextResponse.json({ ok: true, entry });
   } catch (err) {
     console.error(`Saving a return failed for ${orderId}:`, err);
