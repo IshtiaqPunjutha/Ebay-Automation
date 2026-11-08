@@ -361,6 +361,19 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
               {report.unconvertedCosts > 0 && `${report.unconvertedCosts} AliExpress cost(s) are in another currency and were left out.`}
             </p>
           )}
+          {report.missingCostOrders?.length > 0 && (
+            <div style={{ fontSize: 12.5, marginBottom: 8 }}>
+              <span className="text-muted">Orders without a cost: </span>
+              {report.missingCostOrders.slice(0, 30).map((id, i) => (
+                <span key={id}>
+                  {i > 0 && ", "}
+                  <Link href={`/stores/${entry.storeId}/dispatched?order=${encodeURIComponent(id)}`} className="link-accent mono" title="Open this order">
+                    {id}
+                  </Link>
+                </span>
+              ))}
+            </div>
+          )}
           {(() => {
             const checks = reconcile(report);
             const bad = checks.filter((c) => !c.ok);
