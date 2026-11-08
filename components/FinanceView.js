@@ -270,8 +270,8 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             </div>
             <div className="stat-card">
               <div className="stat-label">Refunds</div>
-              <div className="stat-value">{money((report.refundsNet ?? report.refunds ?? 0) + (report.refundsOtherMonths || 0), report.currency)}</div>
-              <div className="stat-hint" title={`Buyers got ${money(report.refunds, report.currency)}; eBay gave back ${money(report.refundCredits, report.currency)} in fees`}>
+              <div className="stat-value">{money(-((report.statement?.refunds || 0) + (report.statement?.returns || 0)), report.currency)}</div>
+              <div className="stat-hint" title="Refunds, cancellations and returns paid back to buyers this month (after the fees eBay gave back)">
                 {report.fullRefunds || 0} full, {report.partialRefunds || 0} partial
                 {report.refundsOtherMonthsCount > 0 && `, ${report.refundsOtherMonthsCount} of older months`}
               </div>
@@ -319,13 +319,16 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             <table className="review-table" aria-label="Month statement">
               <tbody>
                 {[
-                  ["Sales after eBay fees (before refunds)", report.salesBeforeRefunds, false],
-                  ["Refunds (net of the fees eBay gave back)", -(report.refundsNet ?? report.refunds ?? 0), false],
-                  ["eBay earnings", report.earnings, true],
+                  ["Sales (eBay: Orders, after selling fees)", report.statement?.sales ?? report.salesBeforeRefunds, false],
+                  ["Refunds and cancellations (eBay: Refunds)", report.statement?.refunds ?? -report.refunds, false],
+                  ["Returns refunded (eBay books them as disputes)", report.statement?.returns ?? 0, false],
+                  ["Ad fees (promoted listings)", report.statement?.adFees ?? 0, false],
+                  ["Listing fees", report.statement?.listingFees ?? 0, false],
+                  ["Other eBay charges", report.statement?.otherFees ?? 0, false],
+                  ["eBay total for the month", report.earnings + report.otherCharges, true],
                   ["AliExpress cost", -report.cost, false],
                   ["AliExpress refunds received on returns", report.returnsRecovered || 0, false],
                   ["Refunded to buyers outside eBay", -(report.returnsOutside || 0), false],
-                  ["Other eBay charges (ads, listing fees, old-month refunds)", report.otherCharges, false],
                   ["Extra expenses", -report.expensesTotal, false],
                   ["Profit", report.profit, true],
                   [`VA share (${partnership.vaPercent}%)`, report.split.va, false],
@@ -379,7 +382,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
           {report.refundRows?.length > 0 && (
             <div style={{ fontSize: 12.5, marginBottom: 8 }}>
               <span className="text-muted">
-                Refunds are shown the way eBay's statement shows them: buyers got {money(report.refunds, report.currency)}, eBay gave back {money(report.refundCredits || 0, report.currency)} in fees, so {money(report.refundsNet ?? report.refunds, report.currency)}.{" "}
+                eBay's statement shows Refunds as {money(-(report.statement?.refunds || 0), report.currency)}. A return paid back to a buyer is booked by eBay as a "dispute" ({money(-(report.statement?.returns || 0), report.currency)}); the statement's summary lines leave it out, but eBay does take that money, so it counts here.{" "}
               </span>
               <button type="button" className="link-accent" onClick={() => setShowRefunds((v) => !v)} style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }}>
                 {showRefunds ? "Hide refund details" : "Show refund details"}
@@ -388,14 +391,14 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                 <div className="review-scroll" style={{ marginTop: 6 }}>
                   <table className="review-table">
                     <thead>
-                      <tr><th>Date</th><th>eBay order</th><th>Type</th><th>Refunded to buyer</th></tr>
+                      <tr><th>Date</th><th>eBay order</th><th>Kind</th><th>Amount</th></tr>
                     </thead>
                     <tbody>
                       {report.refundRows.map((r, i) => (
                         <tr key={`${r.orderId}-${i}`}>
                           <td className="mono">{r.date}</td>
                           <td className="mono">{r.orderId}</td>
-                          <td>{r.type}</td>
+                          <td>{r.type === "DISPUTE" ? "Return refunded" : r.cancelled ? "Cancelled order" : "Refund"}</td>
                           <td>{money(r.amount, report.currency)}</td>
                         </tr>
                       ))}
