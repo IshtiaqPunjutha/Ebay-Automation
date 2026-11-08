@@ -508,11 +508,11 @@ const COPY = {
     emptyHint: "New orders will appear here when you refresh.",
   },
   cancellations: {
-    title: "Cancellation requests",
-    subtitle: "Orders where the buyer asked to cancel and you have not answered yet (last 60 days). Answer on eBay.",
-    countLabel: "Requests",
-    empty: "No cancellation requests",
-    emptyHint: "Orders with an open cancellation request will appear here when you refresh.",
+    title: "Cancellations",
+    subtitle: "Orders the buyer asked to cancel (answer them on eBay) and orders that are already cancelled (last 60 days).",
+    countLabel: "Cancellations",
+    empty: "No cancellations",
+    emptyHint: "Orders with a cancellation request, and cancelled orders, will appear here when you refresh.",
   },
   dispatched: {
     title: "Dispatched orders",
@@ -1459,7 +1459,7 @@ export default function OrdersView({ status: statusProp = "new" }) {
                                     Delivered
                                   </span>
                                 ) : (
-                                  <StatusBadge status={order.fulfillmentStatus} />
+                                  order.cancelState === "CANCELED" ? <span className="badge">Cancelled</span> : <StatusBadge status={order.fulfillmentStatus} />
                                 )}
                                 {(() => {
                                   const open = (order.cancelRequests || []).find((r) => r.state === "REQUESTED");
@@ -1477,7 +1477,7 @@ export default function OrdersView({ status: statusProp = "new" }) {
                                     </span>
                                   );
                                 })()}
-                                {status === "new" && !sentTracking[order.orderId] && <DispatchBy shipBy={order.shipBy} />}
+                                {status === "new" && !sentTracking[order.orderId] && order.cancelState !== "CANCELED" && <DispatchBy shipBy={order.shipBy} />}
                                 {status === "new" && sentTracking[order.orderId] && (
                                   <span
                                     className="badge badge-info"
@@ -1649,8 +1649,9 @@ export default function OrdersView({ status: statusProp = "new" }) {
                                     const refunded = Math.max(Number(order.refundTotal) || 0, Number(order.earnings?.refunded) || 0);
                                     const cancelled = order.cancelState === "CANCELED";
                                     if (!refunded && !cancelled) return null;
-                                    const full = order.orderTotal != null && refunded >= order.orderTotal * 0.98;
-                                    const label = refunded ? `${full ? "Full refund" : "Partial refund"} ${refunded.toFixed(2)}` : "Cancelled";
+                                    // eBay's refund figure can be after fees, so a cancelled or fully refunded order is not called partial.
+                                    const full = cancelled || order.paymentStatus === "FULLY_REFUNDED" || (order.orderTotal != null && refunded >= order.orderTotal * 0.98);
+                                    const label = cancelled ? "Cancelled" : full ? "Fully refunded" : `Partial refund ${refunded.toFixed(2)}`;
                                     return (
                                       <div
                                         className="money-item"

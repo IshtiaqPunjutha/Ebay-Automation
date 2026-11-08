@@ -32,7 +32,7 @@ function storeGroups(storeId) {
           children: [
             { href: `/stores/${storeId}`, label: "New orders", icon: Inbox, exact: true },
             { href: `/stores/${storeId}/dispatched`, label: "Dispatched", icon: Truck },
-            { href: `/stores/${storeId}/cancellations`, label: "Cancellation requests", icon: Ban },
+            { href: `/stores/${storeId}/cancellations`, label: "Cancellations", icon: Ban },
             { href: `/stores/${storeId}/returns`, label: "Returns", icon: Undo2 },
           ],
         },
