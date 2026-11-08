@@ -115,7 +115,7 @@ export async function PUT(request) {
       const note = typeof body.ali?.note === "string" ? body.ali.note.slice(0, 200) : "";
       if (!RETURN_ALI_STATUSES.includes(status)) return NextResponse.json({ error: "Invalid AliExpress status" }, { status: 400 });
       if (!Number.isFinite(amount) || amount < 0 || amount > 100000) return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
-      ali = { status, amount: status === "received" ? Math.round(amount * 100) / 100 : 0, note };
+      ali = { status, amount: status === "received" || status === "bonus" ? Math.round(amount * 100) / 100 : 0, note };
     }
     let via;
     if (body.via !== undefined) {

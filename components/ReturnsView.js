@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 import { formatMoney } from "@/lib/marketplaces";
 
-const ALI_LABEL = { waiting: "Waiting", received: "Paid back", none: "Nothing back" };
+const ALI_LABEL = { waiting: "Waiting", received: "Paid back (cash/card)", bonus: "Paid back as bonus", none: "Nothing back" };
 const VIA_LABEL = { ebay: "eBay return", chat: "Settled in chat", other: "Other" };
 const REASON = {
   NO_REASON: "No reason",
@@ -71,7 +71,7 @@ function AliCell({ row, onSave }) {
       <select
         className="input"
         value={row.ali.status}
-        onChange={(e) => onSave(row.orderId, { status: e.target.value, amount: e.target.value === "received" ? Number(amount) || 0 : 0, note: row.ali.note })}
+        onChange={(e) => onSave(row.orderId, { status: e.target.value, amount: e.target.value === "received" || e.target.value === "bonus" ? Number(amount) || 0 : 0, note: row.ali.note })}
         aria-label="Did AliExpress pay back?"
         style={{ width: "auto" }}
       >
@@ -79,14 +79,14 @@ function AliCell({ row, onSave }) {
           <option key={value} value={value}>{label}</option>
         ))}
       </select>
-      {row.ali.status === "received" && (
+      {(row.ali.status === "received" || row.ali.status === "bonus") && (
         <input
           className="input"
           inputMode="decimal"
           placeholder="Amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          onBlur={() => Number(amount) !== Number(row.ali.amount) && onSave(row.orderId, { status: "received", amount: Number(amount) || 0, note: row.ali.note })}
+          onBlur={() => Number(amount) !== Number(row.ali.amount) && onSave(row.orderId, { status: row.ali.status, amount: Number(amount) || 0, note: row.ali.note })}
           style={{ width: 80 }}
           aria-label="Amount AliExpress paid back"
         />
@@ -137,9 +137,12 @@ function DetailsRow({ row, currency, onSave, columns }) {
               How the result is worked out: eBay left {formatMoney(row.ebayNet, currency)} (sale, fees and refund together), AliExpress cost {formatMoney(-row.aliCost, currency)}, AliExpress paid back{" "}
               {formatMoney(row.ali.status === "received" ? row.ali.amount : 0, currency)}
               {row.extraRefund > 0 && `, paid to buyer outside eBay ${formatMoney(-row.extraRefund, currency)}`} = {formatMoney(result, currency)}.
+              {row.ali.status === "bonus" && ` The ${formatMoney(row.ali.amount, currency)} paid back as bonus is not counted here: the orders you buy with that bonus show a cost of 0, and that is where the saving appears.`}
             </>
           ) : result === null ? (
             "The result is worked out once you say whether AliExpress paid back."
+          ) : row.ali.status === "bonus" && result === undefined ? (
+            "Paid back as bonus: it is not counted as money back. When you buy another order with the bonus, that order shows a cost of 0, and that is where the saving appears."
           ) : (
             "The result needs the AliExpress cost of this order (sync it with the extension)."
           )}
