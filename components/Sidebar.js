@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, ChevronLeft, Inbox, LayoutGrid, Store, PackageSearch, Table2, ListChecks, Truck, Landmark, Ban } from "lucide-react";
+import { ChevronDown, ChevronLeft, Inbox, LayoutGrid, Store, PackageSearch, Table2, ListChecks, Truck, Landmark, Ban, Undo2 } from "lucide-react";
 import AccountMenu from "./AccountMenu";
 
 // The sidebar's contents follow where you are: workspace pages show the
@@ -33,6 +33,7 @@ function storeGroups(storeId) {
             { href: `/stores/${storeId}`, label: "New orders", icon: Inbox, exact: true },
             { href: `/stores/${storeId}/dispatched`, label: "Dispatched", icon: Truck },
             { href: `/stores/${storeId}/cancellations`, label: "Cancellation requests", icon: Ban },
+            { href: `/stores/${storeId}/returns`, label: "Returns", icon: Undo2 },
           ],
         },
         { href: `/stores/${storeId}/sheet`, label: "Sheet mapping", icon: Table2 },

@@ -639,6 +639,21 @@ export default function OrdersView({ status: statusProp = "new" }) {
   const [savingRef, setSavingRef] = useState(false);
   // One small button per order: "Sync note" writes the saved AliExpress numbers into the order's note on eBay,
   // and once they are there it turns into "Undo note", which removes the note again (the numbers here stay).
+  // Adds the order to the Returns tab (where the AliExpress refund and the loss are tracked).
+  async function markReturn(orderId) {
+    if (!window.confirm("Mark this order as a return? It is added to the Returns tab.")) return;
+    try {
+      const res = await fetch(`/api/ebay/returns?store=${encodeURIComponent(storeId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, source: "manual" }),
+      });
+      const body = await res.json().catch(() => ({}));
+      window.alert(res.ok ? "Added to the Returns tab." : body.error || "Could not mark the return.");
+    } catch {
+      window.alert("Could not reach the server.");
+    }
+  }
   const [noteBusy, setNoteBusy] = useState({});
   async function toggleEbayNote(orderId, synced) {
     setNoteBusy((prev) => ({ ...prev, [orderId]: true }));
@@ -1471,6 +1486,11 @@ export default function OrdersView({ status: statusProp = "new" }) {
                                     <Truck strokeWidth={2.5} />
                                     Tracking sent {new Date(sentTracking[order.orderId].at).toLocaleDateString()}
                                   </span>
+                                )}
+                                {status === "dispatched" && idx === 0 && (
+                                  <button type="button" className="link-button" onClick={() => markReturn(order.orderId)} title="This order was returned: track the AliExpress refund and the loss">
+                                    Mark return
+                                  </button>
                                 )}
                                 {idx === 0 && allIds.length > 0 && (() => {
                                   const synced = Boolean(refEntry.noteText) && refEntry.noteText === allIds.join(", ");
