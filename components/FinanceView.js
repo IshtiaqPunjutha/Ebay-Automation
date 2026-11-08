@@ -8,6 +8,21 @@ import { Pager, paginate } from "./Pager";
 
 import { formatMoney as money } from "@/lib/marketplaces";
 
+// Checks that the figures of a month add up exactly, in whole pence.
+function reconcile(report) {
+  const p = (v) => Math.round((Number(v) || 0) * 100);
+  const fmt = (pence) => money(pence / 100, report.currency);
+  const parts = p(report.earnings) - p(report.cost) + p(report.returnsRecovered) - p(report.returnsOutside) + p(report.otherCharges) - p(report.expensesTotal);
+  const ledger = (report.typeTotals || []).reduce((sum, k) => sum + p(k.amount), 0);
+  const days = (report.days || []).reduce((sum, d) => sum + p(d.profit), 0);
+  return [
+    { label: "Earnings - cost + returns + other charges - expenses = profit", ok: parts === p(report.profit), detail: `${fmt(parts)} vs ${fmt(p(report.profit))}` },
+    { label: "VA share + owner share = profit", ok: p(report.split.va) + p(report.split.owner) === p(report.profit), detail: `${fmt(p(report.split.va) + p(report.split.owner))} vs ${fmt(p(report.profit))}` },
+    { label: "All eBay transactions = earnings + other charges", ok: ledger === p(report.earnings) + p(report.otherCharges), detail: `${fmt(ledger)} vs ${fmt(p(report.earnings) + p(report.otherCharges))}` },
+    ...(report.days?.length ? [{ label: "The days add up to the month's profit", ok: days === p(report.profit), detail: `${fmt(days)} vs ${fmt(p(report.profit))}` }] : []),
+  ];
+}
+
 // Small icon button that copies `text` and flashes a check mark.
 function CopyIcon({ text, label }) {
   const [copied, setCopied] = useState(false);
@@ -140,7 +155,8 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
   const [orderPage, setOrderPage] = useState(1);
   const [orderPageSize, setOrderPageSize] = useState(25);
   const [showDays, setShowDays] = useState(false); // day by day stays hidden until asked for
-  const [showRefunds, setShowRefunds] = useState(false);
+  const [showRefunds, setShowRefunds] = useState(true);
+  const [tab, setTab] = useState("summary"); // which section of the month is open
   const [check, setCheck] = useState(null); // result of "Check against eBay"
   const [checking, setChecking] = useState(false);
 
@@ -225,6 +241,25 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
 
       {report && (
         <>
+          <div className="segmented" role="tablist" aria-label="Finance sections" style={{ marginBottom: 14, flexWrap: "wrap" }}>
+            {[
+              ["summary", "Summary"],
+              ["days", "Day by day"],
+              ["orders", "Orders"],
+              ["refunds", "Refunds & charges"],
+              ["payouts", "eBay payouts"],
+              ["expenses", "Extra expenses"],
+              ["payments", "VA payments"],
+              ["check", "eBay statement check"],
+            ].map(([key, label]) => (
+              <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "summary" && (
+            <>
           <div className="stat-grid compact">
             <div className="stat-card">
               <div className="stat-label">eBay earnings</div>
@@ -307,6 +342,40 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             </table>
           </div>
 
+          {(report.sharedCosts > 0 || report.otherCurrencyRows > 0 || report.failedRows > 0 || report.daysReconcile === false) && (
+            <p className="text-muted" style={{ fontSize: 12.5 }}>
+              {report.sharedCosts > 0 && `${report.sharedCosts} AliExpress order(s) are linked to more than one eBay order, so their cost is split between them. `}
+              {report.otherCurrencyRows > 0 && `${report.otherCurrencyRows} eBay transaction(s) in another currency were left out. `}
+              {report.failedRows > 0 && `${report.failedRows} failed eBay transaction(s) were ignored. `}
+              {report.daysReconcile === false && "The days do not add up to the month total: some money has no date. "}
+            </p>
+          )}
+
+          {(report.missingCost > 0 || report.unconvertedCosts > 0) && (
+            <p className="text-error" style={{ fontSize: 12.5 }}>
+              <CircleAlert size={13} style={{ verticalAlign: "-2px" }} />{" "}
+              {report.missingCost > 0 && `${report.missingCost} order(s) have no AliExpress cost yet (sync them with the extension), so their profit is overstated. `}
+              {report.unconvertedCosts > 0 && `${report.unconvertedCosts} AliExpress cost(s) are in another currency and were left out.`}
+            </p>
+          )}
+          {(() => {
+            const checks = reconcile(report);
+            const bad = checks.filter((c) => !c.ok);
+            return bad.length === 0 ? (
+              <p className="text-muted" style={{ fontSize: 12.5 }}>
+                <Check size={13} style={{ verticalAlign: "-2px" }} /> Every figure above adds up to the penny. Open "eBay statement check" to compare with eBay's statement.
+              </p>
+            ) : (
+              <p className="text-error" style={{ fontSize: 12.5 }}>
+                <CircleAlert size={13} style={{ verticalAlign: "-2px" }} /> {bad.map((c) => c.label).join("; ")}. Open "eBay statement check".
+              </p>
+            );
+          })()}
+
+            </>
+          )}
+          {tab === "refunds" && (
+            <>
           {report.refundRows?.length > 0 && (
             <div style={{ fontSize: 12.5, marginBottom: 8 }}>
               <span className="text-muted">
@@ -343,58 +412,12 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             </p>
           )}
 
-          {(report.sharedCosts > 0 || report.otherCurrencyRows > 0 || report.failedRows > 0 || report.daysReconcile === false) && (
-            <p className="text-muted" style={{ fontSize: 12.5 }}>
-              {report.sharedCosts > 0 && `${report.sharedCosts} AliExpress order(s) are linked to more than one eBay order, so their cost is split between them. `}
-              {report.otherCurrencyRows > 0 && `${report.otherCurrencyRows} eBay transaction(s) in another currency were left out. `}
-              {report.failedRows > 0 && `${report.failedRows} failed eBay transaction(s) were ignored. `}
-              {report.daysReconcile === false && "The days do not add up to the month total: some money has no date. "}
-            </p>
+          {!(report.refundRows?.length > 0) && !(report.otherKinds?.length > 0) && <p className="text-muted">No refunds or other charges this month.</p>}
+            </>
           )}
-
-          <div style={{ marginBottom: 8 }}>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={runCheck} disabled={checking}>
-              {checking ? "Checking every order…" : "Check against eBay"}
-            </button>{" "}
-            {check?.error && <span className="text-error">{check.error}</span>}
-            {check && !check.error && check.mismatches.length === 0 && (
-              <span className="text-muted" role="status">
-                All {check.checked} orders match the orders page to the penny.
-                {check.unavailable > 0 && ` (${check.unavailable} could not be read from eBay.)`}
-                {check.skipped > 0 && ` (${check.skipped} more were not checked.)`}
-              </span>
-            )}
-            {check && !check.error && check.mismatches.length > 0 && (
-              <div className="text-error" style={{ fontSize: 12.5, marginTop: 6 }} role="status">
-                {check.mismatches.length} order(s) differ (this month's figure vs the orders page, which also counts refunds or fees from other months):
-                <ul style={{ margin: "4px 0 0 16px" }}>
-                  {check.mismatches.map((m) => (
-                    <li key={m.orderId} className="mono">
-                      {m.orderId}: {money(m.finance, report.currency)} vs {money(m.ordersPage, report.currency)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {(report.missingCost > 0 || report.unconvertedCosts > 0) && (
-            <p className="text-error" style={{ fontSize: 12.5 }}>
-              <CircleAlert size={13} style={{ verticalAlign: "-2px" }} />{" "}
-              {report.missingCost > 0 && `${report.missingCost} order(s) have no AliExpress cost yet (sync them with the extension), so their profit is overstated. `}
-              {report.unconvertedCosts > 0 && `${report.unconvertedCosts} AliExpress cost(s) are in another currency and were left out.`}
-            </p>
-          )}
-
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <button type="button" className="link-accent" onClick={() => setShowDays((v) => !v)} style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }}>
-            {showDays ? "Hide day by day" : "Show day by day"}
-          </button>
-          <button type="button" className="link-accent" onClick={() => setShowOrders((v) => !v)} style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }}>
-            {showOrders ? "Hide orders" : "Show orders"}
-          </button>
-          </div>
-          {showDays && report.days?.length > 0 && (
+          {tab === "days" && (
+            <>
+          {report.days?.length > 0 && (
             <div className="review-scroll" style={{ marginTop: 8 }}>
               <table className="review-table">
                 <thead>
@@ -446,7 +469,11 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
               </table>
             </div>
           )}
-          {showOrders && (
+            </>
+          )}
+          {tab === "orders" && (
+            <>
+          {(
             <div style={{ marginTop: 8 }}>
               <input
                 className="input"
@@ -462,7 +489,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
               />
             </div>
           )}
-          {showOrders && (() => {
+          {(() => {
             const needle = orderQuery.trim().toLowerCase();
             const rows = needle ? report.orders.filter((o) => `${o.orderId} ${(o.aliOrderIds || []).join(" ")}`.toLowerCase().includes(needle)) : report.orders;
             const paged = paginate(rows, orderPage, orderPageSize);
@@ -521,9 +548,81 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
             </div>
             );
           })()}
-          <PayoutsPanel report={report} />
-          <ExpensesPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} locked={Boolean(closed)} />
-          <PaymentsPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />
+            </>
+          )}
+          {tab === "check" && (
+            <>
+              <p className="text-muted" style={{ fontSize: 12.5 }}>
+                Compare these lines with the "Transactions summary" of eBay's financial statement for the same month. Each line is every eBay transaction of one kind, added up.
+              </p>
+              <div className="review-scroll" style={{ marginBottom: 12 }}>
+                <table className="review-table" aria-label="eBay transactions by kind">
+                  <thead>
+                    <tr><th>Kind of eBay transaction</th><th>Count</th><th style={{ textAlign: "right" }}>Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {(report.typeTotals || []).map((k) => (
+                      <tr key={k.kind}>
+                        <td>{k.kind}</td>
+                        <td>{k.count}</td>
+                        <td style={{ textAlign: "right" }}>{money(k.amount, report.currency)}</td>
+                      </tr>
+                    ))}
+                    <tr style={{ fontWeight: 700 }}>
+                      <td>All transactions</td>
+                      <td>{(report.typeTotals || []).reduce((n, k) => n + k.count, 0)}</td>
+                      <td style={{ textAlign: "right" }}>{money((report.typeTotals || []).reduce((sum, k) => sum + Math.round(k.amount * 100), 0) / 100, report.currency)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-muted" style={{ fontSize: 12.5 }}>
+                Refunds on eBay's statement are net of the fees eBay gave back: this month {money(report.refundsNet ?? report.refunds, report.currency)} ({money(report.refunds, report.currency)} to buyers, {money(report.refundCredits || 0, report.currency)} in fees returned).
+              </p>
+              <div className="review-scroll" style={{ marginBottom: 12 }}>
+                <table className="review-table" aria-label="Checks">
+                  <tbody>
+                    {reconcile(report).map((c) => (
+                      <tr key={c.label}>
+                        <td style={{ width: 28 }}>{c.ok ? <Check size={14} /> : <CircleAlert size={14} />}</td>
+                        <td>{c.label}</td>
+                        <td style={{ textAlign: "right" }} className={c.ok ? "text-muted" : "text-error"}>{c.detail}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+          <div style={{ marginBottom: 8 }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={runCheck} disabled={checking}>
+              {checking ? "Checking every order…" : "Check against eBay"}
+            </button>{" "}
+            {check?.error && <span className="text-error">{check.error}</span>}
+            {check && !check.error && check.mismatches.length === 0 && (
+              <span className="text-muted" role="status">
+                All {check.checked} orders match the orders page to the penny.
+                {check.unavailable > 0 && ` (${check.unavailable} could not be read from eBay.)`}
+                {check.skipped > 0 && ` (${check.skipped} more were not checked.)`}
+              </span>
+            )}
+            {check && !check.error && check.mismatches.length > 0 && (
+              <div className="text-error" style={{ fontSize: 12.5, marginTop: 6 }} role="status">
+                {check.mismatches.length} order(s) differ (this month's figure vs the orders page, which also counts refunds or fees from other months):
+                <ul style={{ margin: "4px 0 0 16px" }}>
+                  {check.mismatches.map((m) => (
+                    <li key={m.orderId} className="mono">
+                      {m.orderId}: {money(m.finance, report.currency)} vs {money(m.ordersPage, report.currency)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+            </>
+          )}
+          {tab === "payouts" && <PayoutsPanel report={report} />}
+          {tab === "expenses" && <ExpensesPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} locked={Boolean(closed)} />}
+          {tab === "payments" && <PaymentsPanel report={report} month={month} storeId={entry.storeId} onMutate={onMutate} />}
         </>
       )}
     </div>
