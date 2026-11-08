@@ -203,7 +203,7 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
         )}
         {entry.report && (
           <a className="btn btn-secondary btn-sm" href={exportUrl} download>
-            Download Excel
+            Download client report (Excel)
           </a>
         )}
         {entry.report && !closed && (
