@@ -18,6 +18,15 @@ const REASON = {
   DIDNT_ARRIVE: "Did not arrive",
 };
 
+// The money result of one return: what eBay left for the order (sale, fees and refund together) minus what the
+// item cost on AliExpress plus what AliExpress paid back. Negative = lost. null = AliExpress not settled yet;
+// undefined = the AliExpress cost or eBay's figure is missing, so it cannot be worked out.
+const resultOf = (row) => {
+  if (row.ali.status === "waiting") return null;
+  if (row.aliCost == null || row.ebayNet == null) return undefined;
+  return Math.round((row.ebayNet - row.aliCost + (row.ali.status === "received" ? Number(row.ali.amount) || 0 : 0)) * 100) / 100;
+};
+
 // What the buyer got back, in the order's currency: eBay's own refund figure for the order, else the return's.
 const refundedOf = (row) => Math.max(Number(row.order?.refunded) || 0, Number(row.ebay?.refund) || 0);
 
@@ -131,7 +140,8 @@ export default function ReturnsView() {
   const settled = rows.filter((r) => r.ali.status !== "waiting");
   const refunded = rows.reduce((sum, r) => sum + refundedOf(r), 0);
   const back = rows.reduce((sum, r) => sum + (r.ali.status === "received" ? Number(r.ali.amount) || 0 : 0), 0);
-  const lost = settled.reduce((sum, r) => sum + refundedOf(r) - (r.ali.status === "received" ? Number(r.ali.amount) || 0 : 0), 0);
+  const results = rows.map(resultOf).filter((v) => typeof v === "number");
+  const net = results.reduce((sum, v) => sum + v, 0);
   const waiting = rows.length - settled.length;
 
   return (
@@ -149,9 +159,9 @@ export default function ReturnsView() {
               <div className="stat-chip"><span className="stat-chip-label">Returns</span><span className="stat-chip-value">{rows.length}</span></div>
               <div className="stat-chip" title="Given back to buyers on eBay"><span className="stat-chip-label">Refunded to buyers</span><span className="stat-chip-value">{formatMoney(refunded, currency)}</span></div>
               <div className="stat-chip" title="Paid back by AliExpress"><span className="stat-chip-label">Back from AliExpress</span><span className="stat-chip-value good">{formatMoney(back, currency)}</span></div>
-              <div className="stat-chip" title={`Only returns that are settled with AliExpress count here (${waiting} still waiting)`}>
-                <span className="stat-chip-label">Lost</span>
-                <span className="stat-chip-value" style={{ color: lost > 0 ? "var(--error, #c0392b)" : undefined }}>{formatMoney(lost, currency)}</span>
+              <div className="stat-chip" title={`What these returns left you in total: eBay's side after fees and refund, minus the AliExpress cost, plus what AliExpress paid back. Only settled returns count (${waiting} still waiting).`}>
+                <span className="stat-chip-label">Result</span>
+                <span className="stat-chip-value" style={{ color: net < -0.005 ? "var(--error, #c0392b)" : undefined }}>{formatMoney(net, currency)}</span>
               </div>
             </div>
           )}
@@ -197,7 +207,7 @@ export default function ReturnsView() {
                 <th>eBay return</th>
                 <th>Refunded to buyer</th>
                 <th>AliExpress refund</th>
-                <th>Loss</th>
+                <th title="eBay's side after fees and the refund, minus the AliExpress cost, plus what AliExpress paid back">Result</th>
                 <th></th>
               </tr>
             </thead>
@@ -205,7 +215,7 @@ export default function ReturnsView() {
               {rows.map((row) => {
                 const out = refundedOf(row);
                 const cur = row.order?.currency || currency;
-                const rowLoss = row.ali.status === "waiting" ? null : out - (row.ali.status === "received" ? Number(row.ali.amount) || 0 : 0);
+                const result = resultOf(row);
                 return (
                   <tr key={row.orderId}>
                     <td className="mono">
@@ -244,10 +254,17 @@ export default function ReturnsView() {
                       <AliCell row={row} onSave={(orderId, ali) => put({ orderId, ali })} />
                     </td>
                     <td>
-                      {rowLoss == null ? (
+                      {result === null ? (
                         <span className="text-muted">waiting</span>
+                      ) : result === undefined ? (
+                        <span className="text-muted" title="The AliExpress cost or eBay's figure for this order is missing">no cost</span>
                       ) : (
-                        <strong style={{ color: rowLoss > 0.005 ? "var(--error, #c0392b)" : undefined }}>{formatMoney(rowLoss, cur)}</strong>
+                        <strong
+                          style={{ color: result < -0.005 ? "var(--error, #c0392b)" : result > 0.005 ? "var(--success, #1a7f37)" : undefined }}
+                          title={`eBay ${formatMoney(row.ebayNet, cur)} - AliExpress cost ${formatMoney(row.aliCost, cur)} + AliExpress refund ${formatMoney(row.ali.status === "received" ? row.ali.amount : 0, cur)}`}
+                        >
+                          {formatMoney(result, cur)}
+                        </strong>
                       )}
                     </td>
                     <td>

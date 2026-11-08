@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { RETURN_ALI_STATUSES, getAliCosts, getEbayStore, getOrderRefs, getReturns, removeReturnEntry, setReturnEntry, updateStoreAccessToken } from "@/lib/store";
-import { isTokenExpired, refreshAccessToken } from "@/lib/ebay";
+import { fetchOrderEarnings, isTokenExpired, refreshAccessToken } from "@/lib/ebay";
 import { fetchEbayReturns, fetchOrderBrief, fetchOrderIdMap } from "@/lib/returns";
 import { marketplaceOf } from "@/lib/marketplaces";
 import { getSessionUserId, SESSION_COOKIE_NAME } from "@/lib/session";
@@ -60,6 +60,8 @@ export async function GET(request) {
         const entry = saved[orderId] || null;
         const aliOrderIds = refs[orderId]?.aliOrderIds || [];
         const knownCosts = aliOrderIds.map((id) => costs[id]).filter(Boolean);
+        // What eBay left for this order after the sale, its fees and the refund (usually a little below zero for a fully refunded order).
+        const [order, earned] = await Promise.all([fetchOrderBrief(token, orderId), fetchOrderEarnings(token, orderId)]);
         return {
           orderId,
           ebay: byOrder[orderId] || null,
@@ -68,7 +70,8 @@ export async function GET(request) {
           createdAt: entry?.createdAt || null,
           aliOrderIds,
           aliCost: knownCosts.length ? Math.round(knownCosts.reduce((sum, c) => sum + Number(c.amount || 0), 0) * 100) / 100 : null,
-          order: await fetchOrderBrief(token, orderId),
+          order,
+          ebayNet: earned ? earned.earnings : null,
         };
       })
     );
