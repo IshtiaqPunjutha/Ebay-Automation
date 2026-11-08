@@ -509,7 +509,7 @@ const COPY = {
   },
   cancellations: {
     title: "Cancellations",
-    subtitle: "Orders the buyer asked to cancel (answer them on eBay) and orders that are already cancelled (last 60 days).",
+    subtitle: "Requests: the buyer asked to cancel and you have not answered yet (answer on eBay). Cancelled orders: shown for the month you pick.",
     countLabel: "Cancellations",
     empty: "No cancellations",
     emptyHint: "Orders with a cancellation request, and cancelled orders, will appear here when you refresh.",
@@ -529,6 +529,9 @@ export default function OrdersView({ status: statusProp = "new" }) {
   const cancellations = statusProp === "cancellations";
   const status = cancellations ? "new" : statusProp;
   const copy = COPY[statusProp] || COPY.new;
+  // Cancellations page: open requests, or cancelled orders of one month.
+  const [cancelView, setCancelView] = useState("requests");
+  const [cancelMonth, setCancelMonth] = useState(new Date().toISOString().slice(0, 7));
   const { storeId } = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -800,6 +803,10 @@ export default function OrdersView({ status: statusProp = "new" }) {
         pageSize: String(pageSize),
       });
       if (focusOrder) params.set("order", focusOrder);
+      if (cancellations) {
+        params.set("view", cancelView);
+        if (cancelView === "cancelled") params.set("month", cancelMonth);
+      }
       const res = await fetch(`/api/ebay/orders?${params.toString()}`);
       const data = await res.json();
       // The finance page does not know whether an order has shipped; move to the tab it is on.
@@ -903,7 +910,7 @@ export default function OrdersView({ status: statusProp = "new" }) {
   useEffect(() => {
     if (!storeId || !ready) return;
     loadOrders();
-  }, [storeId, ready, status, page, pageSize, focusOrder]);
+  }, [storeId, ready, status, page, pageSize, focusOrder, cancelView, cancelMonth]);
 
   // The dashboard's new-order watcher found a new order: reload this list so it shows up without a click.
   loadOrdersRef.current = loadOrders;
@@ -1264,7 +1271,46 @@ export default function OrdersView({ status: statusProp = "new" }) {
                 </button>
               </>
             )}
-            {status === "new" && (
+            {cancellations && (
+              <>
+                <div className="segmented" role="group" aria-label="Cancellations">
+                  {[
+                    ["requests", "Cancellation requests"],
+                    ["cancelled", "Cancelled orders"],
+                  ].map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={cancelView === key ? "active" : ""}
+                      aria-pressed={cancelView === key}
+                      onClick={() => {
+                        setCancelView(key);
+                        setPage(1);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {cancelView === "cancelled" && (
+                  <input
+                    className="input"
+                    type="month"
+                    value={cancelMonth}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setCancelMonth(e.target.value);
+                        setPage(1);
+                      }
+                    }}
+                    aria-label="Month cancelled"
+                    title="Orders cancelled in this month"
+                    style={{ width: "auto" }}
+                  />
+                )}
+              </>
+            )}
+            {status === "new" && !cancellations && (
               <div className="segmented" role="group" aria-label="Filter by status">
                 {[
                   ["all", "All"],
@@ -1611,7 +1657,7 @@ export default function OrdersView({ status: statusProp = "new" }) {
                                       Same buyer · {buyerOthers.length + 1} orders
                                     </span>
                                   )}
-                                  {status === "new" && !covered && (
+                                  {status === "new" && !cancellations && !covered && (
                                     <span className="badge badge-new" title="No AliExpress number yet. This tag goes away once the order is synced.">
                                       New
                                     </span>

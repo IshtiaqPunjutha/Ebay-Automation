@@ -37,6 +37,10 @@ export async function GET(request) {
     return NextResponse.json({ orders: [], error: "Invalid status" }, { status: 400 });
   }
   const orderId = searchParams.get("order") || "";
+  // Cancellations: "requests" (open, still to answer) or "cancelled", the latter for one month ("2026-10").
+  const view = searchParams.get("view") === "cancelled" ? "cancelled" : "requests";
+  const monthParam = searchParams.get("month") || "";
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : "";
   if (orderId && !/^[A-Za-z0-9-]{4,64}$/.test(orderId)) {
     return NextResponse.json({ orders: [], error: "Invalid order id" }, { status: 400 });
   }
@@ -74,6 +78,8 @@ export async function GET(request) {
       offset: (page - 1) * pageSize,
       orderId,
       marketplaceId: storeRecord.marketplaceId || null,
+      view,
+      month,
     });
     // eBay is the truth: an order that is still NOT_STARTED has no shipment on eBay, so a "tracking sent" record for it
     // is out of date (the shipment was removed on eBay). Forget it, so the order is a normal new order again.
