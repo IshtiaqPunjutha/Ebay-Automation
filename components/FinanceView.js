@@ -604,9 +604,21 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                 {check.skipped > 0 && ` (${check.skipped} more were not checked.)`}
               </span>
             )}
+            {check && !check.error && check.later?.length > 0 && (
+              <div className="text-muted" style={{ fontSize: 12.5, marginTop: 8 }}>
+                {check.later.length} order(s) also have money booked in another month, so their orders page total differs from this month's figure. That is normal: it is counted in that other month, the same way as on eBay's statements.
+                <ul style={{ margin: "4px 0 0 16px" }}>
+                  {check.later.map((m) => (
+                    <li key={m.orderId} className="mono">
+                      {m.orderId}: {money(m.amount, report.currency)} booked in another month
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {check && !check.error && check.mismatches.length > 0 && (
               <div className="text-error" style={{ fontSize: 12.5, marginTop: 6 }} role="status">
-                {check.mismatches.length} order(s) differ (this month's figure vs the orders page, which also counts refunds or fees from other months):
+                {check.mismatches.length} order(s) differ (this month's figure vs eBay's own total of this month's money for the order):
                 <ul style={{ margin: "4px 0 0 16px" }}>
                   {check.mismatches.map((m) => (
                     <li key={m.orderId} className="mono">

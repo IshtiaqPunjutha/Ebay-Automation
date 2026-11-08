@@ -44,19 +44,22 @@ export async function GET(request) {
     const orders = report.orders.slice(0, MAX_ORDERS);
 
     const mismatches = [];
+    const later = []; // money of these orders that was booked in another month (normal; counted in that month)
     let unavailable = 0;
     const CONCURRENCY = 6;
     for (let i = 0; i < orders.length; i += CONCURRENCY) {
       await Promise.all(
         orders.slice(i, i + CONCURRENCY).map(async (o) => {
-          const other = await fetchOrderEarnings(token, o.orderId);
+          const other = await fetchOrderEarnings(token, o.orderId, range);
           if (!other) {
             unavailable += 1;
             return;
           }
-          if (Math.round(other.earnings * 100) !== Math.round(o.net * 100)) {
-            mismatches.push({ orderId: o.orderId, finance: o.net, ordersPage: other.earnings });
+          // Only this month's money is compared with this month's figure.
+          if (Math.round(other.inRange * 100) !== Math.round(o.net * 100)) {
+            mismatches.push({ orderId: o.orderId, finance: o.net, ordersPage: other.inRange });
           }
+          if (Math.round(other.outside * 100) !== 0) later.push({ orderId: o.orderId, amount: other.outside });
         })
       );
     }
@@ -65,6 +68,7 @@ export async function GET(request) {
       unavailable,
       skipped: report.orders.length - orders.length,
       mismatches,
+      later,
     });
   } catch (err) {
     console.error(`Finance verify failed for store ${storeId}:`, err);
