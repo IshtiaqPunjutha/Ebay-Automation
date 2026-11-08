@@ -21,6 +21,28 @@ const REASON = {
 // What the buyer got back, in the order's currency: eBay's own refund figure for the order, else the return's.
 const refundedOf = (row) => Math.max(Number(row.order?.refunded) || 0, Number(row.ebay?.refund) || 0);
 
+// A number with a small button that copies it.
+function CopyNumber({ text }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      window.prompt("Copy:", text);
+    }
+  }
+  return (
+    <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      {text}
+      <button type="button" className="link-button" onClick={copy} title="Copy the AliExpress number" style={{ fontSize: 11 }}>
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </span>
+  );
+}
+
 function AliCell({ row, onSave }) {
   const [amount, setAmount] = useState(String(row.ali.amount || ""));
   useEffect(() => setAmount(String(row.ali.amount || "")), [row.ali.amount]);
@@ -174,7 +196,6 @@ export default function ReturnsView() {
                 <th>Item</th>
                 <th>eBay return</th>
                 <th>Refunded to buyer</th>
-                <th>AliExpress order</th>
                 <th>AliExpress refund</th>
                 <th>Loss</th>
                 <th></th>
@@ -194,6 +215,19 @@ export default function ReturnsView() {
                     <td style={{ maxWidth: 260 }}>
                       <div>{row.order?.title || "—"}</div>
                       <div className="item-meta">{row.order?.buyer}</div>
+                      {/* The AliExpress number(s) of this order, right under the item. */}
+                      <div style={{ marginTop: 6 }}>
+                        {row.aliOrderIds.length ? (
+                          row.aliOrderIds.map((id) => (
+                            <div key={id}>
+                              <CopyNumber text={id} />
+                            </div>
+                          ))
+                        ) : (
+                          <span className="item-meta">No AliExpress number saved</span>
+                        )}
+                        {row.aliCost != null && <div className="item-meta">cost {formatMoney(row.aliCost, row.order?.currency || currency)}</div>}
+                      </div>
                     </td>
                     <td>
                       {row.ebay ? (
@@ -206,10 +240,6 @@ export default function ReturnsView() {
                       )}
                     </td>
                     <td>{out > 0 ? formatMoney(out, cur) : <span className="text-muted">not refunded yet</span>}</td>
-                    <td className="mono">
-                      {row.aliOrderIds.length ? row.aliOrderIds.map((id) => <div key={id}>{id}</div>) : <span className="text-muted">none</span>}
-                      {row.aliCost != null && <div className="item-meta">cost {formatMoney(row.aliCost, cur)}</div>}
-                    </td>
                     <td>
                       <AliCell row={row} onSave={(orderId, ali) => put({ orderId, ali })} />
                     </td>
