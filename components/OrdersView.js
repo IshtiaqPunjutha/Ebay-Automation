@@ -1143,6 +1143,47 @@ export default function OrdersView({ status: statusProp = "new" }) {
         </p>
       )}
 
+      {/* Always shown on the Cancellations page, even when the list is empty. */}
+      {cancellations && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+                <div className="segmented" role="group" aria-label="Cancellations">
+                  {[
+                    ["requests", "Cancellation requests"],
+                    ["cancelled", "Cancelled orders"],
+                  ].map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={cancelView === key ? "active" : ""}
+                      aria-pressed={cancelView === key}
+                      onClick={() => {
+                        setCancelView(key);
+                        setPage(1);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {cancelView === "cancelled" && (
+                  <input
+                    className="input"
+                    type="month"
+                    value={cancelMonth}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setCancelMonth(e.target.value);
+                        setPage(1);
+                      }
+                    }}
+                    aria-label="Month cancelled"
+                    title="Orders cancelled in this month"
+                    style={{ width: "auto" }}
+                  />
+                )}
+        </div>
+      )}
+
       {loading && orders.length === 0 && (
         <div className="panel">
           {[0, 1, 2].map((i) => (
@@ -1269,45 +1310,6 @@ export default function OrdersView({ status: statusProp = "new" }) {
                   <Truck strokeWidth={2} />
                   Track all ({trackableNumbers.length})
                 </button>
-              </>
-            )}
-            {cancellations && (
-              <>
-                <div className="segmented" role="group" aria-label="Cancellations">
-                  {[
-                    ["requests", "Cancellation requests"],
-                    ["cancelled", "Cancelled orders"],
-                  ].map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={cancelView === key ? "active" : ""}
-                      aria-pressed={cancelView === key}
-                      onClick={() => {
-                        setCancelView(key);
-                        setPage(1);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {cancelView === "cancelled" && (
-                  <input
-                    className="input"
-                    type="month"
-                    value={cancelMonth}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setCancelMonth(e.target.value);
-                        setPage(1);
-                      }
-                    }}
-                    aria-label="Month cancelled"
-                    title="Orders cancelled in this month"
-                    style={{ width: "auto" }}
-                  />
-                )}
               </>
             )}
             {status === "new" && !cancellations && (
