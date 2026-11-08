@@ -260,6 +260,21 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
 
           {tab === "summary" && (
             <>
+              <div className="panel" style={{ padding: 16, marginBottom: 14, display: "flex", gap: 28, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div>
+                  <div className="stat-label">Profit this month</div>
+                  <div className="stat-value" style={{ fontSize: 28 }}>{money(report.profit, report.currency)}</div>
+                </div>
+                <div>
+                  <div className="stat-label">VA gets ({partnership.vaPercent}%)</div>
+                  <div className="stat-value" style={{ fontSize: 22 }}>{money(report.split.va, report.currency)}</div>
+                  <div className="stat-hint">Paid {money(report.vaPaid, report.currency)}, still to pay {money(report.vaBalance, report.currency)}</div>
+                </div>
+                <div>
+                  <div className="stat-label">Owner / investor gets ({partnership.ownerPercent}%)</div>
+                  <div className="stat-value" style={{ fontSize: 22 }}>{money(report.split.owner, report.currency)}</div>
+                </div>
+              </div>
           <div className="stat-grid compact">
             <div className="stat-card">
               <div className="stat-label">eBay earnings</div>
@@ -299,19 +314,6 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
               <div className="stat-label">Extra expenses</div>
               <div className="stat-value">{money(report.expensesTotal, report.currency)}</div>
               <div className="stat-hint">Added by you</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Profit</div>
-              <div className="stat-value">{money(report.profit, report.currency)}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">VA share ({partnership.vaPercent}%)</div>
-              <div className="stat-value">{money(report.split.va, report.currency)}</div>
-              <div className="stat-hint">Paid {money(report.vaPaid, report.currency)}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Owner share ({partnership.ownerPercent}%)</div>
-              <div className="stat-value">{money(report.split.owner, report.currency)}</div>
             </div>
           </div>
 
@@ -544,7 +546,16 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
                           "–"
                         )}
                       </td>
-                      <td>{closed ? (o.cost === null ? <span className="text-muted">no cost</span> : money(o.cost, report.currency)) : <CostCell order={o} currency={report.currency} onSave={(orderId, amount) => onMutate("manual-cost", "PUT", entry.storeId, { orderId, amount })} />}</td>
+                      <td>
+                        {o.refundStatus === "full" && o.cost === null ? (
+                          <span className="text-muted" title="Cancelled or fully refunded: nothing had to be bought for it">not needed</span>
+                        ) : closed ? (
+                          o.cost === null ? <span className="text-muted">no cost</span> : money(o.cost, report.currency)
+                        ) : (
+                          <CostCell order={o} currency={report.currency} onSave={(orderId, amount) => onMutate("manual-cost", "PUT", entry.storeId, { orderId, amount })} />
+                        )}
+                        {o.bonus > 0 && <div className="item-meta">AliExpress paid back {money(o.bonus, report.currency)} as bonus (counted when you use the bonus)</div>}
+                      </td>
                       <td>{money(o.profit, report.currency)}</td>
                     </tr>
                   ))}
