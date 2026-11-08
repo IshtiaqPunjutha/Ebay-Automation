@@ -552,6 +552,11 @@ function StoreCard({ entry, onSavePercent, single, month, onMutate }) {
           )}
           {tab === "check" && (
             <>
+              <p style={{ marginBottom: 10 }}>
+                <a className="btn btn-secondary btn-sm" href={`/api/finance/transactions?store=${encodeURIComponent(entry.storeId)}&month=${encodeURIComponent(month)}`} download>
+                  Download this month's eBay transactions (CSV)
+                </a>
+              </p>
               <p className="text-muted" style={{ fontSize: 12.5 }}>
                 Compare these lines with the "Transactions summary" of eBay's financial statement for the same month. Each line is every eBay transaction of one kind, added up.
               </p>
