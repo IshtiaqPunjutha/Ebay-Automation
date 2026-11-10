@@ -26,6 +26,20 @@ export async function POST(request) {
     return NextResponse.json({ error: "Use a password between 12 and 128 characters" }, { status: 400 });
   }
 
+  // Sign-ups need the invitation code the owner sets in SIGNUP_CODE. Without that setting nobody can create an account.
+  const signupCode = process.env.SIGNUP_CODE || "";
+  if (!signupCode) {
+    console.warn(`Sign-up refused (sign-ups are closed): ${email}`);
+    return NextResponse.json({ error: "New accounts are closed. Ask the owner for an invitation." }, { status: 403 });
+  }
+  const inviteCode = typeof body.inviteCode === "string" ? body.inviteCode : "";
+  const codeBuffer = Buffer.from(inviteCode);
+  const expectedCode = Buffer.from(signupCode);
+  if (codeBuffer.length !== expectedCode.length || !timingSafeEqual(codeBuffer, expectedCode)) {
+    console.warn(`Sign-up refused (wrong invitation code): ${email}`);
+    return NextResponse.json({ error: "Wrong invitation code." }, { status: 403 });
+  }
+
   const legacyStoreCount = await getLegacyEbayStoreCount();
   if (legacyStoreCount > 0) {
     const previousPassword = process.env.APP_PASSWORD || "";

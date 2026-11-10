@@ -8,6 +8,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [legacyPassword, setLegacyPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [mode, setMode] = useState("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export default function LoginPage() {
       const res = await fetch(`/api/auth/${mode === "register" ? "register" : "login"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, legacyPassword }),
+        body: JSON.stringify({ email, password, legacyPassword, inviteCode }),
       });
       const result = await res.json();
       if (!res.ok) {
@@ -122,6 +123,18 @@ export default function LoginPage() {
           maxLength={128}
           required
         />
+        {mode === "register" && (
+          <input
+            type="password"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            placeholder="Invitation code (from the owner)"
+            className="input"
+            style={{ marginBottom: "14px", textAlign: "left" }}
+            autoComplete="off"
+            required
+          />
+        )}
         {mode === "register" && (
           <input
             type="password"

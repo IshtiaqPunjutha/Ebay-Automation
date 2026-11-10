@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSessionCookieValue, SESSION_COOKIE_NAME } from "@/lib/session";
 import { verifyPassword } from "@/lib/password";
-import { getUserByEmail } from "@/lib/users";
+import { getUserByEmail, noteLogin } from "@/lib/users";
 import { resumeLegacyEbayStoreMigration } from "@/lib/store";
 
 // Redis (KV) calls go over fetch; never let Next.js cache their answers.
@@ -32,6 +32,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Store migration is temporarily unavailable. Please try again." }, { status: 503 });
   }
 
+  await noteLogin(user).catch((error) => console.error("Could not note the login:", error));
   const sessionValue = await createSessionCookieValue(user.id);
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE_NAME, sessionValue, {
